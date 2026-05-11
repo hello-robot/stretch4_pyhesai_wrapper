@@ -1,0 +1,23 @@
+[build-system]
+requires = ["scikit-build-core>=0.10.0", "pybind11>=2.13.0"]
+build-backend = "scikit_build_core.build"
+
+[project]
+name = "pyhesai_wrapper"
+version = "2.0.0"
+requires-python = ">=3.12"
+description = "Python wrapper for Hesai Lidar SDK 2.0 for use with Stretch."
+dependencies = [
+    "numpy>=2.3.4",
+    "rerun-sdk>=0.31.0",
+    "pyyaml"
+]
+
+[tool.scikit-build]
+cmake.source-dir = "."
+cmake.args = ["-DPYBIND11_FINDPYTHON=ON"]
+wheel.install-dir = "pyhesai_wrapper"
+
+[project.scripts]
+stretch_lidar_show = "pyhesai_wrapper.tools.stretch_lidar_show:main"
+REx_hesai_download_calibration = "pyhesai_wrapper.tools.REx_hesai_download_calibration:main"
