@@ -1,11 +1,21 @@
 # CMakeLists.txt
 
-cmake_minimum_required(VERSION 3.14)
+cmake_minimum_required(VERSION 3.15)
 project(pyhesai_wrapper_cpp)
 
 # Set C++ standard
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
+
+# Check for the required Hesai libraries and tell the user to apt install them
+find_library(PCAP_LIB pcap)
+find_library(SSL_LIB ssl)
+
+if(NOT PCAP_LIB OR NOT SSL_LIB)
+    message(FATAL_ERROR "Missing required dependencies!\n"
+                        "Please run the following command to install them:\n"
+                        "sudo apt install libpcap-dev libssl-dev")
+endif()
 
 # --- Find Python ---
 find_package(Python3 COMPONENTS Interpreter Development REQUIRED)
@@ -60,6 +70,32 @@ if(NOT EXISTS ${HESAI_SDK_DIR})
     if(NOT GIT_CLONE_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to clone HesaiLidar_SDK_2.0")
     endif()
+    
+    message(STATUS "HesaiLidar_SDK_2.0 cloned successfully. Checking out specific commit...")
+
+    # Checkout the specific commit
+    execute_process(
+        COMMAND git checkout a695d91b336c141831088561fe2f44bbc9af0831
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/HesaiLidar_SDK_2.0
+        RESULT_VARIABLE GIT_CHECKOUT_RESULT
+    )
+
+    if(NOT GIT_CHECKOUT_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to checkout the commit")
+    endif()
+
+    # Update submodules to match the specific commit state
+    execute_process(
+        COMMAND git submodule update --init --recursive
+        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/HesaiLidar_SDK_2.0
+        RESULT_VARIABLE GIT_SUBMODULE_RESULT
+    )
+
+    if(NOT GIT_SUBMODULE_RESULT EQUAL 0)
+        message(FATAL_ERROR "Failed to update submodules after checking out the commit")
+    endif()
+
+    message(STATUS "Successfully checked out commit and updated submodules.")
 
     message(STATUS "HesaiLidar_SDK_2.0 cloned successfully")
 endif()
