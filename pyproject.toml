@@ -12,6 +12,13 @@ dependencies = [
     "rerun-sdk>=0.31.0",
     "pyyaml"
 ]
+readme = { file = "README.md", content-type = "text/markdown" }
+authors = [
+    { name = "Hello Robot Inc.", email = "support@hello-robot.com" },
+]
+
+[project.urls]
+Repository = "https://github.com/hello-robot/stretch4_pyhesai_wrapper"
 
 [tool.scikit-build]
 cmake.source-dir = "."
