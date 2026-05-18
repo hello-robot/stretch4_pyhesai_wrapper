@@ -73,10 +73,6 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
    stretch_lidar_show --right
    ```
 4. You should see point cloud data streaming from the lidar. Press Ctrl-C to stop.
-5. You may also visualize the points in rerun using the `--rerun` flag:
-   ```bash
-   stretch_lidar_show --left --rerun
-   ```
 
 #### Download calibration (`tools/REx_hesai_download_calibration.py`):
 1. Edit `pyhesai_wrapper/config.yaml` to configure your lidar settings:
