@@ -5,6 +5,10 @@
 #include <pybind11/functional.h>
 #include <pybind11/numpy.h> // For py::buffer_info
 
+#include <chrono>
+#include <memory>
+#include <thread>
+
 // Include Hesai SDK headers
 #include "hesai_lidar_sdk.hpp"
 #include "lidar_types.h"
@@ -20,6 +24,39 @@ using LidarPointT = LidarPointXYZICRT;
 using HesaiLidarSdk_XYZICRT = HesaiLidarSdk<LidarPointT>;
 using LidarDecodedFrame_XYZICRT = LidarDecodedFrame<LidarPointT>;
 
+namespace {
+
+void WaitUntilOpen(hesai::lidar::PtcClient& client, double timeout_s) {
+    const auto deadline = std::chrono::steady_clock::now() +
+        std::chrono::duration<double>(timeout_s);
+    const int timeout_ms = static_cast<int>(timeout_s * 1000.0);
+    if (timeout_ms > 0) {
+        client.SetSocketTimeout(
+            static_cast<uint32_t>(timeout_ms),
+            static_cast<uint32_t>(timeout_ms));
+    }
+    while (!client.IsOpen()) {
+        if (std::chrono::steady_clock::now() >= deadline) {
+            throw std::runtime_error("PTC connection timeout");
+        }
+        std::this_thread::sleep_for(std::chrono::milliseconds(50));
+    }
+}
+
+std::unique_ptr<hesai::lidar::PtcClient> ConnectPtc(
+    const std::string& ip, uint16_t port, double timeout_s) {
+    auto client = std::make_unique<hesai::lidar::PtcClient>(ip, port);
+    WaitUntilOpen(*client, timeout_s);
+    return client;
+}
+
+py::bytes U8ArrayToBytes(const hesai::lidar::u8Array_t& data) {
+    return py::bytes(
+        reinterpret_cast<const char*>(data.data()),
+        static_cast<py::ssize_t>(data.size()));
+}
+
+}  // namespace
 
 // PYBIND11_MODULE defines the entry point for the Python module.
 // The first argument (pyhesai_wrapper_cpp) is the module name in Python (e.g., import pyhesai_wrapper_cpp).
@@ -238,7 +275,101 @@ PYBIND11_MODULE(pyhesai_wrapper_cpp, m) {
     // --- Wrap Utility Functions ---
     m.def("GetMicroTickCount", &GetMicroTickCount, "Get the current time in microseconds");
 
-    // --- PTC Client Functions ---
+    // --- PTC Client ---
+    py::class_<hesai::lidar::PtcClient>(m, "PtcClient")
+        .def(py::init<const std::string&, uint16_t>(),
+             py::arg("ip"), py::arg("port") = 9347)
+        .def("wait_until_open",
+             [](hesai::lidar::PtcClient& self, double timeout_s) {
+                 WaitUntilOpen(self, timeout_s);
+             },
+             py::arg("timeout_s"))
+        .def("is_open", &hesai::lidar::PtcClient::IsOpen)
+        .def("get_return_mode",
+             [](hesai::lidar::PtcClient& self) {
+                 uint8_t mode = 0;
+                 if (!self.GetReturnMode(mode)) {
+                     throw std::runtime_error("GetReturnMode failed");
+                 }
+                 return static_cast<int>(mode);
+             })
+        .def("set_return_mode",
+             [](hesai::lidar::PtcClient& self, uint8_t mode) {
+                 if (!self.SetReturnMode(mode)) {
+                     throw std::runtime_error("SetReturnMode failed");
+                 }
+             },
+             py::arg("mode"))
+        .def("get_ptp_lock_offset_us",
+             [](hesai::lidar::PtcClient& self) {
+                 uint16_t offset_us = 0;
+                 if (self.GetPTPLockOffset(offset_us) != 0) {
+                     throw std::runtime_error("GetPTPLockOffset failed");
+                 }
+                 return static_cast<int>(offset_us);
+             })
+        .def("set_ptp_lock_offset_us",
+             [](hesai::lidar::PtcClient& self, uint16_t offset_us) {
+                 if (!self.SetPTPLockOffset(offset_us)) {
+                     throw std::runtime_error("SetPTPLockOffset failed");
+                 }
+             },
+             py::arg("offset_us"))
+        .def("get_spin_rate",
+             [](hesai::lidar::PtcClient& self) {
+                 uint16_t rpm = 0;
+                 if (!self.GetSpinRate(rpm)) {
+                     throw std::runtime_error("GetSpinRate failed");
+                 }
+                 return static_cast<int>(rpm);
+             })
+        .def("set_spin_speed",
+             [](hesai::lidar::PtcClient& self, uint32_t rpm) {
+                 if (!self.SetSpinSpeed(rpm)) {
+                     throw std::runtime_error("SetSpinSpeed failed");
+                 }
+             },
+             py::arg("rpm"))
+        .def("get_lidar_ptp_status",
+             [](hesai::lidar::PtcClient& self) {
+                 uint8_t status = 0;
+                 if (!self.GetLidarPtpStatus(status)) {
+                     throw std::runtime_error("GetLidarPtpStatus failed");
+                 }
+                 return static_cast<int>(status);
+             })
+        .def("get_ptp_diagnostics_raw",
+             [](hesai::lidar::PtcClient& self, uint8_t query_type) {
+                 hesai::lidar::u8Array_t dataOut;
+                 if (self.GetPTPDiagnostics(dataOut, query_type) != 0) {
+                     throw std::runtime_error("GetPTPDiagnostics failed");
+                 }
+                 return U8ArrayToBytes(dataOut);
+             },
+             py::arg("query_type") = 1)
+        .def("get_config_info_raw",
+             [](hesai::lidar::PtcClient& self) {
+                 hesai::lidar::u8Array_t dataOut;
+                 if (self.GetConfigInfoRaw(dataOut) != 0) {
+                     throw std::runtime_error("GetConfigInfoRaw failed");
+                 }
+                 return U8ArrayToBytes(dataOut);
+             });
+
+    m.def("ptc_reachable",
+          [](const std::string& ip, uint16_t port, double timeout_s) -> bool {
+              try {
+                  auto client = ConnectPtc(ip, port, timeout_s);
+                  return client->IsOpen();
+              } catch (const std::exception&) {
+                  return false;
+              }
+          },
+          py::arg("ip"),
+          py::arg("port") = 9347,
+          py::arg("timeout_s") = 2.0,
+          "Return True if PTC TCP port accepts a connection");
+
     m.def("download_calibration_bytes", [](const std::string& ip_address, int ptc_port) -> py::bytes {
         hesai::lidar::PtcClient ptc_client(ip_address, ptc_port);
         
