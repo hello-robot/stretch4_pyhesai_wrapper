@@ -17,6 +17,7 @@ import argparse
 import sys
 
 from pyhesai_wrapper.ptc_client import (
+    FILTER_NAMES,
     HesaiPtcError,
     LEFT_LIDAR_IP,
     PTP_LOCK_OFFSET_MAX_US,
@@ -27,12 +28,15 @@ from pyhesai_wrapper.ptc_client import (
     RIGHT_LIDAR_IP,
     SPIN_RATE_RPM_600,
     SPIN_RATE_RPM_1200,
+    ULTRA_PRECISE_NAMES,
     get_lidar_ptp_status,
+    get_point_cloud_config,
     get_ptp_diagnostics,
     get_ptp_lock_offset_us,
     get_return_mode,
     get_spin_rate,
     ptc_reachable,
+    set_filter_type,
     set_ptp_lock_offset_us,
     set_return_mode,
     set_spin_speed,
@@ -75,6 +79,19 @@ def read_all(ip: str, timeout: float) -> None:
         _ok('ptp lock offset:{} us'.format(offset))
     except HesaiPtcError as exc:
         _fail('ptp lock offset:FAILED ({})'.format(exc))
+
+    try:
+        ultra, filt = get_point_cloud_config(ip, timeout=timeout)
+        _ok(
+            'point cloud:    ultra={} ({}) filter={} ({})'.format(
+                ultra,
+                ULTRA_PRECISE_NAMES.get(ultra, 'unknown'),
+                filt,
+                FILTER_NAMES.get(filt, 'unknown'),
+            )
+        )
+    except HesaiPtcError as exc:
+        _fail('point cloud:    FAILED ({})'.format(exc))
 
     try:
         status = get_lidar_ptp_status(ip, timeout=timeout)
@@ -189,6 +206,52 @@ def test_set_ptp_lock_offset(ip: str, timeout: float) -> None:
         _fail('SET ptp_lock_offset: FAILED ({})'.format(exc))
 
 
+def test_set_filter_type(ip: str, timeout: float) -> None:
+    try:
+        ultra_before, filter_before = get_point_cloud_config(ip, timeout=timeout)
+        _ok(
+            'GET point_cloud: ultra={} ({}) filter={} ({})'.format(
+                ultra_before,
+                ULTRA_PRECISE_NAMES.get(ultra_before, 'unknown'),
+                filter_before,
+                FILTER_NAMES.get(filter_before, 'unknown'),
+            )
+        )
+    except HesaiPtcError as exc:
+        _fail('GET point_cloud: FAILED ({})'.format(exc))
+        return
+
+    line = input('SET filter [0-2 disabled/medium/strong]: ').strip()
+    try:
+        filt = int(line)
+    except ValueError:
+        _fail('Invalid input.')
+        return
+    if filt not in FILTER_NAMES:
+        _fail('Filter must be 0, 1, or 2.')
+        return
+
+    try:
+        set_filter_type(ip, filt, timeout=timeout)
+        ultra_after, filter_after = get_point_cloud_config(ip, timeout=timeout)
+        ultra_match = 'UNCHANGED' if ultra_after == ultra_before else 'CHANGED'
+        filter_match = 'MATCH' if filter_after == filt else 'MISMATCH'
+        _ok(
+            'SET filter: OK\n'
+            'GET readback: ultra={} ({}) {}\n'
+            '              filter={} ({}) {}'.format(
+                ultra_after,
+                ULTRA_PRECISE_NAMES.get(ultra_after, 'unknown'),
+                ultra_match,
+                filter_after,
+                FILTER_NAMES.get(filter_after, 'unknown'),
+                filter_match,
+            )
+        )
+    except HesaiPtcError as exc:
+        _fail('SET filter: FAILED ({})'.format(exc))
+
+
 def _print_menu(ip: str) -> None:
     print(
         '\n--- pyhesai_wrapper PTC test ({}) ---\n'
@@ -197,12 +260,14 @@ def _print_menu(ip: str) -> None:
         '    2  get_return_mode\n'
         '    3  get_spin_rate\n'
         '    4  get_ptp_lock_offset\n'
-        '    5  get_ptp_status\n'
-        '    6  get_ptp_diagnostics\n'
+        '    5  get_point_cloud_config (ultra_precise + filter)\n'
+        '    6  get_ptp_status\n'
+        '    7  get_ptp_diagnostics\n'
         '  SET (GET → SET → GET, wrapper verifies readback)\n'
         '   10  set_return_mode\n'
         '   11  set_spin_speed (600 or 1200 RPM)\n'
         '   12  set_ptp_lock_offset (1-1000 us)\n'
+        '   13  set_filter_type (0-2; ultra_precise unchanged)\n'
         '    0  quit\n'
         'Choice: ',
         end='',
@@ -252,11 +317,15 @@ def main(argv: list[str] | None = None) -> int:
         4: lambda: _ok(
             'ptp_lock_offset: {} us'.format(get_ptp_lock_offset_us(ip, args.timeout))
         ),
-        5: lambda: _ok('ptp_status: {}'.format(get_lidar_ptp_status(ip, args.timeout))),
-        6: lambda: _ok('ptp_diagnostics: {}'.format(get_ptp_diagnostics(ip, args.timeout))),
+        5: lambda: _ok('point_cloud_config: {}'.format(
+            get_point_cloud_config(ip, args.timeout)
+        )),
+        6: lambda: _ok('ptp_status: {}'.format(get_lidar_ptp_status(ip, args.timeout))),
+        7: lambda: _ok('ptp_diagnostics: {}'.format(get_ptp_diagnostics(ip, args.timeout))),
         10: lambda: test_set_return_mode(ip, args.timeout),
         11: lambda: test_set_spin_speed(ip, args.timeout),
         12: lambda: test_set_ptp_lock_offset(ip, args.timeout),
+        13: lambda: test_set_filter_type(ip, args.timeout),
     }
 
     while True:

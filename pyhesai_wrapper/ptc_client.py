@@ -45,6 +45,25 @@ PTP_STATUS_NAMES = {
 ACCEPTABLE_PTP_STATUSES = {PTP_STATUS_TRACKING, PTP_STATUS_LOCKED}
 FAIL_PTP_STATUSES = {PTP_STATUS_FREE_RUN, PTP_STATUS_FROZEN}
 
+POINT_CLOUD_KEEP_CURRENT = 0xFF
+
+FILTER_DISABLED = 0
+FILTER_MEDIUM = 1
+FILTER_STRONG = 2
+
+FILTER_NAMES = {
+    FILTER_DISABLED: 'disabled',
+    FILTER_MEDIUM: 'medium',
+    FILTER_STRONG: 'strong',
+}
+
+ULTRA_PRECISE_NAMES = {
+    0: 'low',
+    1: 'medium',
+    2: 'strong',
+    3: 'off',
+}
+
 
 class HesaiPtcError(Exception):
     """Raised when a PTC command fails."""
@@ -193,6 +212,31 @@ def set_spin_speed(ip, rpm, timeout=2.0, ptc_port=PTC_PORT):
                 'SetSpinSpeed readback mismatch: expected {} RPM, got {} RPM'.format(
                     rpm, readback
                 )
+            )
+
+    _run(_set, ip, timeout, ptc_port)
+
+
+def get_point_cloud_config(ip, timeout=2.0, ptc_port=PTC_PORT):
+    """Read JT128 point cloud config (ultra_precise, filter) via GET 0x122."""
+    return _run(lambda c: c.get_point_cloud_config(), ip, timeout, ptc_port)
+
+
+def set_filter_type(ip, filter_type, timeout=2.0, ptc_port=PTC_PORT):
+    """
+    Set point-cloud filter type; leave ultra_precise unchanged.
+
+    Raises HesaiPtcError on SET failure or filter readback mismatch.
+    """
+    filt = int(filter_type)
+
+    def _set(client):
+        client.set_point_cloud_config_selective(POINT_CLOUD_KEEP_CURRENT, filt)
+        ultra, readback = client.get_point_cloud_config()
+        if readback != filt:
+            raise HesaiPtcError(
+                'SetPointCloudConfig filter readback mismatch: expected {}, got {} '
+                '(ultra_precise={})'.format(filt, readback, ultra)
             )
 
     _run(_set, ip, timeout, ptc_port)

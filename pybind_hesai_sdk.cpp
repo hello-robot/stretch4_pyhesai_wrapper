@@ -330,6 +330,25 @@ PYBIND11_MODULE(pyhesai_wrapper_cpp, m) {
                  }
              },
              py::arg("rpm"))
+        .def("get_point_cloud_config",
+             [](hesai::lidar::PtcClient& self) {
+                 uint8_t ultra_precise = 0;
+                 uint8_t filter = 0;
+                 if (!self.GetPointCloudConfig(ultra_precise, filter)) {
+                     throw std::runtime_error("GetPointCloudConfig failed");
+                 }
+                 return py::make_tuple(static_cast<int>(ultra_precise),
+                                       static_cast<int>(filter));
+             })
+        .def("set_point_cloud_config_selective",
+             [](hesai::lidar::PtcClient& self, uint8_t ultra_precise,
+                uint8_t filter) {
+                 if (!self.SetPointCloudConfigSelective(ultra_precise, filter)) {
+                     throw std::runtime_error(
+                         "SetPointCloudConfigSelective failed");
+                 }
+             },
+             py::arg("ultra_precise"), py::arg("filter"))
         .def("get_lidar_ptp_status",
              [](hesai::lidar::PtcClient& self) {
                  uint8_t status = 0;
