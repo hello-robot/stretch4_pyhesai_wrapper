@@ -88,3 +88,36 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
    REx_hesai_download_calibration --right
    ```
 4. You should see calibration data being downloaded from the lidar to the  `$HELLO_FLEET_PATH/$HELLO_FLEET_ID/calibration_hesais`directory.
+
+#### PTC getters/setters (`pyhesai_wrapper/ptc_client.py`):
+
+SDK-backed JT128 PTC client for return mode, point-cloud filter, PTP lock offset, diagnostics, and reachability checks.
+
+```python
+from pyhesai_wrapper.ptc_client import (
+    FILTER_STRONG,
+    get_point_cloud_config,
+    get_return_mode,
+    set_filter_type,
+    set_return_mode,
+    get_ptp_lock_offset_us,
+    ptc_reachable,
+)
+
+if ptc_reachable('192.168.1.201'):
+    print(get_return_mode('192.168.1.201'))
+    set_return_mode('192.168.1.201', 2)
+    set_filter_type('192.168.1.201', FILTER_STRONG)  # ultra_precise unchanged
+    print(get_point_cloud_config('192.168.1.201'))
+```
+
+#### Wrapper PTC bench test (`stretch_ptc_test`):
+
+Interactive GET/SET test using **only** `pyhesai_wrapper.ptc_client`:
+
+```bash
+stretch_ptc_test --left
+stretch_ptc_test 192.168.1.202
+```
+
+For each SET item: GET baseline → SET via wrapper → GET again (wrapper raises on readback mismatch).

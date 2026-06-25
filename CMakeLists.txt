@@ -62,7 +62,7 @@ message(STATUS "Hesai SDK directory: ${HESAI_SDK_DIR}")
 if(NOT EXISTS ${HESAI_SDK_DIR})
     message(STATUS "Cloning HesaiLidar_SDK_2.0...")
     execute_process(
-        COMMAND git clone --recursive https://github.com/HesaiTechnology/HesaiLidar_SDK_2.0.git
+        COMMAND git clone --recursive https://github.com/hello-robot/HesaiLidar_SDK_2.0.git
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         RESULT_VARIABLE GIT_CLONE_RESULT
     )
@@ -70,47 +70,19 @@ if(NOT EXISTS ${HESAI_SDK_DIR})
     if(NOT GIT_CLONE_RESULT EQUAL 0)
         message(FATAL_ERROR "Failed to clone HesaiLidar_SDK_2.0")
     endif()
-    
-    message(STATUS "HesaiLidar_SDK_2.0 cloned successfully. Checking out specific commit...")
-
-    # Checkout the specific commit
-    execute_process(
-        COMMAND git checkout a695d91b336c141831088561fe2f44bbc9af0831
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/HesaiLidar_SDK_2.0
-        RESULT_VARIABLE GIT_CHECKOUT_RESULT
-    )
-
-    if(NOT GIT_CHECKOUT_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to checkout the commit")
-    endif()
-
-    # Update submodules to match the specific commit state
-    execute_process(
-        COMMAND git submodule update --init --recursive
-        WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/HesaiLidar_SDK_2.0
-        RESULT_VARIABLE GIT_SUBMODULE_RESULT
-    )
-
-    if(NOT GIT_SUBMODULE_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to update submodules after checking out the commit")
-    endif()
-
-    message(STATUS "Successfully checked out commit and updated submodules.")
 
     message(STATUS "HesaiLidar_SDK_2.0 cloned successfully")
 endif()
 
 # Build the Hesai SDK if not already built
 set(HESAI_SDK_BUILD_DIR ${HESAI_SDK_DIR}/build)
+# hesai_sdk_lib, lidar_lib, and udpParser_lib are INTERFACE (header-only) in this SDK branch
 set(HESAI_SDK_LIBS
-    ${HESAI_SDK_BUILD_DIR}/libhesai_sdk_lib.a
-    ${HESAI_SDK_BUILD_DIR}/libhesai/liblidar_lib.a
-    ${HESAI_SDK_BUILD_DIR}/libhesai/libudpParser_lib.a
-    ${HESAI_SDK_BUILD_DIR}/libhesai/libptcClient_lib.a
-    ${HESAI_SDK_BUILD_DIR}/libhesai/libsource_lib.a
-    ${HESAI_SDK_BUILD_DIR}/libhesai/libplatutils_lib.a
-    ${HESAI_SDK_BUILD_DIR}/libhesai/liblog_lib.a
-    ${HESAI_SDK_BUILD_DIR}/libhesai/libserialClient_lib.a
+    ${HESAI_SDK_BUILD_DIR}/libhesai/PtcClient/libptcClient_lib.a
+    ${HESAI_SDK_BUILD_DIR}/libhesai/Source/libsource_lib.a
+    ${HESAI_SDK_BUILD_DIR}/libhesai/Common/libplatutils_lib.a
+    ${HESAI_SDK_BUILD_DIR}/libhesai/Logger/liblog_lib.a
+    ${HESAI_SDK_BUILD_DIR}/libhesai/SerialClient/libserialClient_lib.a
 )
 
 # Check if SDK libraries exist, if not build them
@@ -168,6 +140,7 @@ include_directories(${pybind11_INCLUDE_DIRS})
 
 # Add SDK root and driver
 include_directories(${HESAI_SDK_DIR})
+include_directories(${HESAI_SDK_BUILD_DIR}/generated)
 
 # Add all the necessary include directories from the Hesai SDK
 include_directories(
