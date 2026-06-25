@@ -7,7 +7,7 @@ Provides module-level get/set helpers used by stretch_lidar_check and FAB tests.
 
 import struct
 
-from pyhesai_wrapper import pyhesai_wrapper_cpp as _cpp
+from stretch4_pyhesai_wrapper import pyhesai_wrapper_cpp as _cpp
 
 PTC_PORT = 9347
 PTP_DIAGNOSTICS_SUBCOMMAND = 1

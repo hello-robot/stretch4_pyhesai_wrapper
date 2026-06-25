@@ -1,7 +1,7 @@
 import argparse
 import time
 
-from pyhesai_wrapper import HesaiLidar
+from stretch4_pyhesai_wrapper import HesaiLidar
 
 def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun:bool=True):
     if use_rerun:

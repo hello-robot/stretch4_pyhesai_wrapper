@@ -3,8 +3,9 @@ requires = ["scikit-build-core>=0.10.0", "pybind11>=2.13.0"]
 build-backend = "scikit_build_core.build"
 
 [project]
-name = "pyhesai_wrapper"
-version = "2.0.0"
+name = "hello-robot-stretch4-pyhesai-wrapper"
+# Versioning follow CalVer (YYYY.MM.DD) for PEP 440 compliance
+version = "2026.06.25"
 requires-python = ">=3.12"
 description = "Python wrapper for Hesai Lidar SDK 2.0 for use with Stretch."
 dependencies = [
@@ -23,9 +24,9 @@ Repository = "https://github.com/hello-robot/stretch4_pyhesai_wrapper"
 [tool.scikit-build]
 cmake.source-dir = "."
 cmake.args = ["-DPYBIND11_FINDPYTHON=ON"]
-wheel.install-dir = "pyhesai_wrapper"
+wheel.install-dir = "stretch4_pyhesai_wrapper"
 
 [project.scripts]
-stretch_lidar_show = "pyhesai_wrapper.tools.stretch_lidar_show:main"
-REx_hesai_download_calibration = "pyhesai_wrapper.tools.REx_hesai_download_calibration:main"
-stretch_ptc_test = "pyhesai_wrapper.tools.stretch_ptc_test:main"
+stretch_lidar_show = "stretch4_pyhesai_wrapper.tools.stretch_lidar_show:main"
+REx_hesai_download_calibration = "stretch4_pyhesai_wrapper.tools.REx_hesai_download_calibration:main"
+stretch_ptc_test = "stretch4_pyhesai_wrapper.tools.stretch_ptc_test:main"

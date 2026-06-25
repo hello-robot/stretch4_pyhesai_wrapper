@@ -1,5 +1,5 @@
 import argparse
-from pyhesai_wrapper import HesaiLidar
+from stretch4_pyhesai_wrapper import HesaiLidar
 
 def REx_hesai_download_calibration(use_right_lidar:bool):
     hesai = HesaiLidar(use_right_lidar=use_right_lidar)

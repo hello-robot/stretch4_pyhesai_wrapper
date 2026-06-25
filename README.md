@@ -1,4 +1,4 @@
-# pyhesai_wrapper
+# stretch4_pyhesai_wrapper
 
 This repository holds code that is intended to provide a Python interface to the Hesai JT128 hemispherical LiDAR.
 
@@ -31,12 +31,12 @@ This will:
 1. CMake will find pybind11, the SDK headers, and the SDK libraries.
 1. It will compile pybind_hesai_sdk.cpp and link it against all the .a and .so files.
 1. It will create a Python module file (e.g., pyhesai_wrapper_cpp.cpython-310-x86_64-linux-gnu.so) and install it into your Python environment.
-1. If the build is successful, the pyhesai_wrapper module is now installed and available to all Python scripts in your environment.
+1. If the build is successful, the stretch4_pyhesai_wrapper module is now installed and available to all Python scripts in your environment.
 
 ### Use in your python code
 
 ```python
-from pyhesai_wrapper import stream_lidar_left
+from stretch4_pyhesai_wrapper import stream_lidar_left
 
 def main():
     # Continually yields LidarPointCloudFrame objects as long as it's running
@@ -59,7 +59,7 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
 ### Tools:
 
 #### Live Lidar test (`tools/stretch_lidar_show.py`):
-1. Edit `pyhesai_wrapper/config.yaml` to configure your lidar settings:
+1. Edit `stretch4_pyhesai_wrapper/config.yaml` to configure your lidar settings:
    - Update `device_ip_address` to match your lidar's IP (default: `192.168.1.201`)
    - Update `correction_file_path` to point to your lidar's correction file
    - Optionally update other parameters like `udp_port`, `ptc_port`, etc.
@@ -75,7 +75,7 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
 4. You should see point cloud data streaming from the lidar. Press Ctrl-C to stop.
 
 #### Download calibration (`tools/REx_hesai_download_calibration.py`):
-1. Edit `pyhesai_wrapper/config.yaml` to configure your lidar settings:
+1. Edit `stretch4_pyhesai_wrapper/config.yaml` to configure your lidar settings:
    - Update `device_ip_address` to match your lidar's IP (default: `192.168.1.201`)
    - Update `ptc_port` to match your lidar's PTC port (default: `9347`)
 2. Make sure your machine is on the same network as the lidar.
@@ -89,12 +89,12 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
    ```
 4. You should see calibration data being downloaded from the lidar to the  `$HELLO_FLEET_PATH/$HELLO_FLEET_ID/calibration_hesais`directory.
 
-#### PTC getters/setters (`pyhesai_wrapper/ptc_client.py`):
+#### PTC getters/setters (`stretch4_pyhesai_wrapper/ptc_client.py`):
 
 SDK-backed JT128 PTC client for return mode, point-cloud filter, PTP lock offset, diagnostics, and reachability checks.
 
 ```python
-from pyhesai_wrapper.ptc_client import (
+from stretch4_pyhesai_wrapper.ptc_client import (
     FILTER_STRONG,
     get_point_cloud_config,
     get_return_mode,
@@ -113,7 +113,7 @@ if ptc_reachable('192.168.1.201'):
 
 #### Wrapper PTC bench test (`stretch_ptc_test`):
 
-Interactive GET/SET test using **only** `pyhesai_wrapper.ptc_client`:
+Interactive GET/SET test using **only** `stretch4_pyhesai_wrapper.ptc_client`:
 
 ```bash
 stretch_ptc_test --left

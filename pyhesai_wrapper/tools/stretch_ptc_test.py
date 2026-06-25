@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from pyhesai_wrapper.ptc_client import (
+from stretch4_pyhesai_wrapper.ptc_client import (
     FILTER_NAMES,
     HesaiPtcError,
     LEFT_LIDAR_IP,
