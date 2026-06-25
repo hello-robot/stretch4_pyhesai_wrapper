@@ -60,15 +60,15 @@ message(STATUS "Hesai SDK directory: ${HESAI_SDK_DIR}")
 
 # Check if HesaiLidar_SDK_2.0 exists
 if(NOT EXISTS ${HESAI_SDK_DIR})
-    message(STATUS "Cloning HesaiLidar_SDK_2.0 (hello-robot/support_commands_with_tests)...")
+    message(STATUS "Cloning HesaiLidar_SDK_2.0...")
     execute_process(
-        COMMAND git clone --recursive -b support_commands_with_tests https://github.com/hello-robot/HesaiLidar_SDK_2.0.git
+        COMMAND git clone --recursive https://github.com/hello-robot/HesaiLidar_SDK_2.0.git
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         RESULT_VARIABLE GIT_CLONE_RESULT
     )
 
     if(NOT GIT_CLONE_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to clone HesaiLidar_SDK_2.0 from hello-robot/support_commands_with_tests")
+        message(FATAL_ERROR "Failed to clone HesaiLidar_SDK_2.0")
     endif()
 
     message(STATUS "HesaiLidar_SDK_2.0 cloned successfully")
