@@ -52,17 +52,33 @@ else()
     FetchContent_MakeAvailable(pybind11)
 endif()
 
-# --- Build Hesai SDK ---
+# --- Conditional Hesai SDK Clone based on Git URL ---
 
-# Set the path to the HesaiLidar_SDK_2.0 directory
 set(HESAI_SDK_DIR ${CMAKE_CURRENT_SOURCE_DIR}/HesaiLidar_SDK_2.0)
-message(STATUS "Hesai SDK directory: ${HESAI_SDK_DIR}")
+set(EXPECTED_SDK_URL "https://github.com/hello-robot/HesaiLidar_SDK_2.0.git")
 
-# Check if HesaiLidar_SDK_2.0 exists
-if(NOT EXISTS ${HESAI_SDK_DIR})
-    message(STATUS "Cloning HesaiLidar_SDK_2.0...")
+# 1. If the directory exists, check if its remote URL matches what we expect
+if(EXISTS ${HESAI_SDK_DIR})
     execute_process(
-        COMMAND git clone --recursive https://github.com/hello-robot/HesaiLidar_SDK_2.0.git
+        COMMAND git config --get remote.origin.url
+        WORKING_DIRECTORY ${HESAI_SDK_DIR}
+        OUTPUT_VARIABLE CURRENT_SDK_URL
+        OUTPUT_STRIP_TRAILING_WHITESPACE
+        ERROR_QUIET
+    )
+
+    # If the URL is different (or git command failed), wipe the directory
+    if(NOT "${CURRENT_SDK_URL}" STREQUAL "${EXPECTED_SDK_URL}")
+        message(STATUS "Hesai SDK repository URL has changed or is stale. Cleaning up old directory...")
+        file(REMOVE_RECURSE ${HESAI_SDK_DIR})
+    endif()
+endif()
+
+# 2. Clone the repository if it doesn't exist (either it never did, or it was just wiped above)
+if(NOT EXISTS ${HESAI_SDK_DIR})
+    message(STATUS "Cloning HesaiLidar_SDK_2.0 from ${EXPECTED_SDK_URL}...")
+    execute_process(
+        COMMAND git clone --recursive ${EXPECTED_SDK_URL}
         WORKING_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}
         RESULT_VARIABLE GIT_CLONE_RESULT
     )
