@@ -106,7 +106,9 @@ class HesaiLidar():
         self.started = True
 
     def stop(self):
-        self.lidar_driver.Stop()
+        if hasattr(self, 'lidar_driver') and self.lidar_driver is not None:
+            self.lidar_driver.Stop()
+            self.lidar_driver = None
         self.started = False
         self.connected = False
 
