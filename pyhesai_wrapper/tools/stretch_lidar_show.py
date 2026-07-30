@@ -4,30 +4,17 @@ import numpy as np
 
 from pyhesai_wrapper import HesaiLidar
 
-HAS_URDF = False
-try:
-    from stretch4_urdf import get_urdf_from_robot_params, get_transform
-    urdf_contents = get_urdf_from_robot_params(apply_calibration=True)
-    HAS_URDF = True
-except Exception:
-    try:
-        from stretch_urdf import get_urdf_from_robot_params, get_transform
-        urdf_contents = get_urdf_from_robot_params(apply_calibration=True)
-        HAS_URDF = True
-    except Exception:
-        pass
+from stretch4_urdf import get_urdf_from_robot_params, get_transform
+urdf_contents = get_urdf_from_robot_params(apply_calibration=True)
 
-if HAS_URDF:
-    try:
-        T_left = get_transform(urdf_contents, "lidar_left_link", "base_footprint")
-    except Exception:
-        T_left = None
-    try:
-        T_right = get_transform(urdf_contents, "lidar_right_link", "base_footprint")
-    except Exception:
-        T_right = None
-else:
+
+try:
+    T_left = get_transform(urdf_contents, "lidar_left_link", "base_footprint")
+except Exception:
     T_left = None
+try:
+    T_right = get_transform(urdf_contents, "lidar_right_link", "base_footprint")
+except Exception:
     T_right = None
 
 def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun: bool = True, no_transform: bool = False):
@@ -46,10 +33,7 @@ def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun: bool = True, 
         rr.init("stretch_show_lidar", spawn=True)
 
     if not no_transform:
-        if HAS_URDF:
-            print("Transforming point clouds to base_footprint frame using calibrated URDF.")
-        else:
-            print("Warning: URDF or transform utilities not available. Point clouds will not be transformed.")
+        print("Transforming point clouds to base_footprint frame using calibrated URDF.")
 
     lidars = []
     
@@ -71,7 +55,7 @@ def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun: bool = True, 
                 frame = lidar.get_next()
                 if frame is not None:
                     points = frame.points
-                    if not no_transform and HAS_URDF:
+                    if not no_transform:
                         T = T_left if name == "lidar/left" else T_right
                         if T is not None and points is not None and points.shape[0] > 0:
                             ones = np.ones((points.shape[0], 1), dtype=points.dtype)
