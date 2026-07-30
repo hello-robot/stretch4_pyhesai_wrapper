@@ -8,14 +8,6 @@ from stretch4_urdf import get_urdf_from_robot_params, get_transform
 urdf_contents = get_urdf_from_robot_params(apply_calibration=True)
 
 
-try:
-    T_left = get_transform(urdf_contents, "lidar_left_link", "base_footprint")
-except Exception:
-    T_left = None
-try:
-    T_right = get_transform(urdf_contents, "lidar_right_link", "base_footprint")
-except Exception:
-    T_right = None
 
 def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun: bool = True, no_transform: bool = False):
     import signal
@@ -36,18 +28,22 @@ def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun: bool = True, 
         print("Transforming point clouds to base_footprint frame using calibrated URDF.")
 
     lidars = []
+
+    T_left, T_right = None, None
     
     if use_left:
         print("Connecting to Left LiDAR...")
         hesai_left = HesaiLidar(use_right_lidar=False)
         hesai_left.start()
         lidars.append(("lidar/left", hesai_left))
+        T_left = get_transform(urdf_contents, "lidar_left_link", "base_footprint")
         
     if use_right:
         print("Connecting to Right LiDAR...")
         hesai_right = HesaiLidar(use_right_lidar=True)
         hesai_right.start()
         lidars.append(("lidar/right", hesai_right))
+        T_right = get_transform(urdf_contents, "lidar_right_link", "base_footprint")
 
     try:
         while True:
