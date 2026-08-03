@@ -58,10 +58,17 @@ def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun: bool = True, 
                             pts_hom = np.hstack([points, ones])
                             points = (pts_hom @ T.T)[:, :3]
 
+                    if points is not None and points.shape[0] > 0:
+                        high_intensity_mask = frame.intensity > 240
+                        high_intensity_points = points[high_intensity_mask]
+                    else:
+                        high_intensity_points = np.zeros((0, 3), dtype=np.float32)
+
                     if use_rerun:
                         rr.log(f"{name}/points", rr.Points3D(positions=points))
+                        rr.log(f"{name}/high_intensity", rr.Points3D(positions=high_intensity_points,radii=0.005))
                     else:
-                        print(f"{name}: {points.shape=}, {frame.timestamp=}")
+                        print(f"{name}: {points.shape=}, high_intensity={high_intensity_points.shape[0]}, {frame.timestamp=}")
                 else:
                     if not use_rerun:
                         pass # avoid spamming if printing text
