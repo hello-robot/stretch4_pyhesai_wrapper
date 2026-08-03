@@ -66,12 +66,14 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
 2. Make sure your machine is on the same network as the lidar.
 3. Run the script:
    ```bash
+   stretch_lidar_show
+   stretch_lidar_show --cluster_high_intensity
    stretch_lidar_show --left
-   ```
-   or
-   ```bash
    stretch_lidar_show --right
    ```
+
+   > Note: You can  cluster and display the Euclidean distance to high intensity points by passing the `--cluster_high_intensity` flag
+   
 4. You should see point cloud data streaming from the lidar. Press Ctrl-C to stop.
 
 #### Download calibration (`tools/REx_hesai_download_calibration.py`):
