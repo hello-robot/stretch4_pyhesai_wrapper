@@ -240,3 +240,40 @@ def set_filter_type(ip, filter_type, timeout=2.0, ptc_port=PTC_PORT):
             )
 
     _run(_set, ip, timeout, ptc_port)
+
+
+def get_inventory_info(ip, timeout=2.0, ptc_port=PTC_PORT):
+    """Read and parse lidar inventory information (serial number, model, etc.)."""
+    raw = _run(lambda c: c.get_inventory_info_raw(), ip, timeout, ptc_port)
+    if len(raw) < 136:
+        raise HesaiPtcError("GetInventoryInfo returned too few bytes ({} < 136)".format(len(raw)))
+
+    def decode_str(b):
+        return b.split(b'\x00', 1)[0].decode('ascii', errors='replace').strip()
+
+    sn = decode_str(raw[0:18])
+    model = decode_str(raw[18:50])
+    calib_date = decode_str(raw[50:66])
+
+    mac_bytes = raw[66:72]
+    mac = ':'.join('{:02x}'.format(b) for b in mac_bytes)
+
+    hw_version = decode_str(raw[72:104])
+    sw_version = decode_str(raw[104:120])
+    fpga_version = decode_str(raw[120:136])
+
+    build_id = ""
+    if len(raw) >= 194:
+        build_id = decode_str(raw[184:194])
+
+    return {
+        'serial_number': sn,
+        'model': model,
+        'calibration_date': calib_date,
+        'mac_address': mac,
+        'hardware_version': hw_version,
+        'software_version': sw_version,
+        'fpga_version': fpga_version,
+        'build_id': build_id,
+    }
+

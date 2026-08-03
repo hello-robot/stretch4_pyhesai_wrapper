@@ -29,3 +29,5 @@ wheel.install-dir = "pyhesai_wrapper"
 stretch_lidar_show = "pyhesai_wrapper.tools.stretch_lidar_show:main"
 REx_hesai_download_calibration = "pyhesai_wrapper.tools.REx_hesai_download_calibration:main"
 stretch_ptc_test = "pyhesai_wrapper.tools.stretch_ptc_test:main"
+REx_hesai_show_info = "pyhesai_wrapper.tools.REx_hesai_show_info:main"
+
