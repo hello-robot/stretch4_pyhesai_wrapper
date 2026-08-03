@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-REx_hesai_show_info.py
+REx_hesai_show_config.py
 
 A tool to print configuration, firmware, and status of Stretch's Hesai lidars.
 """

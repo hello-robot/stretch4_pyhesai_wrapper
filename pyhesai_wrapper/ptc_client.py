@@ -5,16 +5,27 @@ JT128 Hesai PTC (TCP) client backed by the Hesai SDK PtcClient via pybind11.
 Provides module-level get/set helpers used by stretch_lidar_check and FAB tests.
 """
 
+import argparse
+import os
 import struct
+import sys
+import yaml
 
 from pyhesai_wrapper import pyhesai_wrapper_cpp as _cpp
 
-PTC_PORT = 9347
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
+with open(CONFIG_PATH, "r") as f:
+    _config_str = os.path.expandvars(f.read())
+    CONFIG = yaml.safe_load(_config_str)
+
+LEFT_LIDAR_IP = CONFIG['left_lidar']['ip']
+RIGHT_LIDAR_IP = CONFIG['right_lidar']['ip']
+PTC_PORT = CONFIG['left_lidar'].get('ptc_port', 9347)
+
 PTP_DIAGNOSTICS_SUBCOMMAND = 1
 PTP_DIAGNOSTICS_PAYLOAD_LEN = 24
 
-LEFT_LIDAR_IP = '192.168.1.202'
-RIGHT_LIDAR_IP = '192.168.1.201'
+
 
 RETURN_MODE_LAST_AND_STRONGEST = 2
 PTP_LOCK_OFFSET_US = 350
@@ -276,4 +287,7 @@ def get_inventory_info(ip, timeout=2.0, ptc_port=PTC_PORT):
         'fpga_version': fpga_version,
         'build_id': build_id,
     }
+
+
+
 
