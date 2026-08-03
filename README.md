@@ -111,13 +111,49 @@ if ptc_reachable('192.168.1.201'):
     print(get_point_cloud_config('192.168.1.201'))
 ```
 
-#### Wrapper PTC bench test (`stretch_ptc_test`):
+#### Show configuration (`REx_hesai_show_config`):
 
-Interactive GET/SET test using **only** `pyhesai_wrapper.ptc_client`:
+To view complete lidar information, return mode, spin rate, PTP status, and point cloud settings:
 
 ```bash
-stretch_ptc_test --left
-stretch_ptc_test 192.168.1.202
+# Show config/status for both lidars
+REx_hesai_show_config
+
+# Show config/status for a specific lidar
+REx_hesai_show_config --left
+REx_hesai_show_config --right
 ```
 
-For each SET item: GET baseline → SET via wrapper → GET again (wrapper raises on readback mismatch).
+This retrieves the serial number, model, hardware and software versions, build ID, MAC address, return mode, spin rate, lock offset, ultra-precise mode, noise filter type, PTP status, and active PTP master offset (if PTP is synchronized).
+
+#### Modify configuration (`REx_hesai_set_config`):
+
+> [!WARNING]
+> Modifying the LiDAR hardware configuration can disrupt the normal operation of your robot. Be cautious when using this utility.
+
+An interactive tool to adjust hardware settings on a specific lidar:
+
+```bash
+# Configure left lidar
+REx_hesai_set_config --left
+
+# Configure right lidar
+REx_hesai_set_config --right
+```
+
+After accepting the warning, you can select from the interactive options:
+* **10** - Set Return Mode (0 to 5)
+* **11** - Set Spin Speed (600 or 1200 RPM)
+* **12** - Set PTP Lock Offset (1 to 1000 us)
+* **13** - Set Noise Filter Type (0 to 2)
+
+Each setting operation performs a baseline GET, followed by the SET command, and finishes with a readback verification GET to guarantee that the hardware successfully applied the modification.
+
+#### Standalone PTC bench test:
+
+You can run the standalone PTC test menu directly:
+
+```bash
+python3 test/ptc_test.py --left
+```
+
