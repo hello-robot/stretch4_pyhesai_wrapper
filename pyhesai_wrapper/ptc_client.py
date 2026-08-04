@@ -5,16 +5,27 @@ JT128 Hesai PTC (TCP) client backed by the Hesai SDK PtcClient via pybind11.
 Provides module-level get/set helpers used by stretch_lidar_check and FAB tests.
 """
 
+import argparse
+import os
 import struct
+import sys
+import yaml
 
 from pyhesai_wrapper import pyhesai_wrapper_cpp as _cpp
 
-PTC_PORT = 9347
+CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
+with open(CONFIG_PATH, "r") as f:
+    _config_str = os.path.expandvars(f.read())
+    CONFIG = yaml.safe_load(_config_str)
+
+LEFT_LIDAR_IP = CONFIG['left_lidar']['ip']
+RIGHT_LIDAR_IP = CONFIG['right_lidar']['ip']
+PTC_PORT = CONFIG['left_lidar'].get('ptc_port', 9347)
+
 PTP_DIAGNOSTICS_SUBCOMMAND = 1
 PTP_DIAGNOSTICS_PAYLOAD_LEN = 24
 
-LEFT_LIDAR_IP = '192.168.1.202'
-RIGHT_LIDAR_IP = '192.168.1.201'
+
 
 RETURN_MODE_LAST_AND_STRONGEST = 2
 PTP_LOCK_OFFSET_US = 350
@@ -240,3 +251,43 @@ def set_filter_type(ip, filter_type, timeout=2.0, ptc_port=PTC_PORT):
             )
 
     _run(_set, ip, timeout, ptc_port)
+
+
+def get_inventory_info(ip, timeout=2.0, ptc_port=PTC_PORT):
+    """Read and parse lidar inventory information (serial number, model, etc.)."""
+    raw = _run(lambda c: c.get_inventory_info_raw(), ip, timeout, ptc_port)
+    if len(raw) < 136:
+        raise HesaiPtcError("GetInventoryInfo returned too few bytes ({} < 136)".format(len(raw)))
+
+    def decode_str(b):
+        return b.split(b'\x00', 1)[0].decode('ascii', errors='replace').strip()
+
+    sn = decode_str(raw[0:18])
+    model = decode_str(raw[18:50])
+    calib_date = decode_str(raw[50:66])
+
+    mac_bytes = raw[66:72]
+    mac = ':'.join('{:02x}'.format(b) for b in mac_bytes)
+
+    hw_version = decode_str(raw[72:104])
+    sw_version = decode_str(raw[104:120])
+    fpga_version = decode_str(raw[120:136])
+
+    build_id = ""
+    if len(raw) >= 194:
+        build_id = decode_str(raw[184:194])
+
+    return {
+        'serial_number': sn,
+        'model': model,
+        'calibration_date': calib_date,
+        'mac_address': mac,
+        'hardware_version': hw_version,
+        'software_version': sw_version,
+        'fpga_version': fpga_version,
+        'build_id': build_id,
+    }
+
+
+
+

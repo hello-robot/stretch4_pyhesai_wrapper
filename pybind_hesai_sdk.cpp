@@ -373,7 +373,29 @@ PYBIND11_MODULE(pyhesai_wrapper_cpp, m) {
                      throw std::runtime_error("GetConfigInfoRaw failed");
                  }
                  return U8ArrayToBytes(dataOut);
-             });
+             })
+        .def("get_inventory_info_raw",
+             [](hesai::lidar::PtcClient& self) {
+                 hesai::lidar::u8Array_t dataIn;
+                 hesai::lidar::u8Array_t dataOut;
+                 int ret = self.QueryCommand(dataIn, dataOut, 0x07);
+                 if (ret != 0) {
+                     throw std::runtime_error("GetInventoryInfo failed");
+                 }
+                 return U8ArrayToBytes(dataOut);
+             })
+        .def("query_command",
+             [](hesai::lidar::PtcClient& self, uint8_t cmd, const std::string& data_in) {
+                 hesai::lidar::u8Array_t in_bytes(data_in.begin(), data_in.end());
+                 hesai::lidar::u8Array_t out_bytes;
+                 int ret = self.QueryCommand(in_bytes, out_bytes, cmd);
+                 if (ret != 0) {
+                     throw std::runtime_error("QueryCommand failed");
+                 }
+                 return U8ArrayToBytes(out_bytes);
+             },
+             py::arg("cmd"), py::arg("data_in") = "");
+
 
     m.def("ptc_reachable",
           [](const std::string& ip, uint16_t port, double timeout_s) -> bool {
