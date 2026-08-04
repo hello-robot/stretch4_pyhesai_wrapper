@@ -394,7 +394,41 @@ PYBIND11_MODULE(pyhesai_wrapper_cpp, m) {
                  }
                  return U8ArrayToBytes(out_bytes);
              },
-             py::arg("cmd"), py::arg("data_in") = "");
+             py::arg("cmd"), py::arg("data_in") = "")
+        .def("set_upgrade_percent_callback",
+             [](hesai::lidar::PtcClient& self, py::function callback) {
+                 self.SetUpgradePercentCallback(
+                     [callback](float percent) {
+                         py::gil_scoped_acquire acquire;
+                         callback(percent);
+                     });
+             },
+             py::arg("callback"),
+             "Register a callback invoked with upgrade progress percent (0-100)")
+        .def("upgrade_lidar_patch",
+             [](hesai::lidar::PtcClient& self, const std::string& file_path,
+                uint32_t cmd_id, int is_extern) {
+                 int ret;
+                 {
+                     py::gil_scoped_release release;
+                     ret = self.UpgradeLidarPatch(file_path, cmd_id, is_extern);
+                 }
+                 if (ret != 0) {
+                     throw std::runtime_error("UpgradeLidarPatch failed");
+                 }
+             },
+             py::arg("file_path"),
+             py::arg("cmd_id") = 0x83,
+             py::arg("is_extern") = 0,
+             "Upload firmware patch via PTC 0x83 (or extern subcmd)")
+        .def("get_upgrade_progress",
+             [](hesai::lidar::PtcClient& self) {
+                 return py::make_tuple(
+                     self.GetUpgradeCurrentPacket(),
+                     self.GetUpgradeTotalPackets(),
+                     self.GetUpgradeStatus());
+             },
+             "Return (current_packet, total_packets, status)");
 
 
     m.def("ptc_reachable",

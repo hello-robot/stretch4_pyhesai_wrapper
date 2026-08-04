@@ -21,9 +21,12 @@ from pyhesai_wrapper.ptc_client import (
     set_ptp_lock_offset_us,
     get_point_cloud_config,
     set_filter_type,
+    get_point_cloud_mode,
+    set_point_cloud_mode,
     RETURN_MODE_NAMES,
     FILTER_NAMES,
     ULTRA_PRECISE_NAMES,
+    POINT_CLOUD_MODE_NAMES,
     SPIN_RATE_RPM_600,
     SPIN_RATE_RPM_1200,
     PTP_LOCK_OFFSET_MIN_US,
@@ -137,14 +140,14 @@ def test_set_filter_type(ip: str, timeout: float) -> None:
         _fail('GET point_cloud: FAILED ({})'.format(exc))
         return
 
-    line = input('SET filter [0-2 disabled/medium/strong]: ').strip()
+    line = input('SET filter [0-3 disabled/medium/strong/strongest]: ').strip()
     try:
         filt = int(line)
     except ValueError:
         _fail('Invalid input.')
         return
     if filt not in FILTER_NAMES:
-        _fail('Filter must be 0, 1, or 2.')
+        _fail('Filter must be 0, 1, 2, or 3.')
         return
 
     try:
@@ -167,13 +170,53 @@ def test_set_filter_type(ip: str, timeout: float) -> None:
     except HesaiPtcError as exc:
         _fail('SET filter: FAILED ({})'.format(exc))
 
+
+def test_set_point_cloud_mode(ip: str, timeout: float) -> None:
+    try:
+        before = get_point_cloud_mode(ip, timeout=timeout)
+        _ok(
+            'GET point_cloud_mode: {} ({})'.format(
+                before, POINT_CLOUD_MODE_NAMES.get(before, 'unknown')
+            )
+        )
+    except HesaiPtcError as exc:
+        _fail('GET point_cloud_mode: FAILED ({})'.format(exc))
+        return
+
+    line = input(
+        'SET point_cloud_mode [0 general / 1 mapping / 2 mapping_ground]: '
+    ).strip()
+    try:
+        mode = int(line)
+    except ValueError:
+        _fail('Invalid input.')
+        return
+    if mode not in POINT_CLOUD_MODE_NAMES:
+        _fail('Mode must be 0, 1, or 2.')
+        return
+
+    try:
+        set_point_cloud_mode(ip, mode, timeout=timeout)
+        after = get_point_cloud_mode(ip, timeout=timeout)
+        match = 'MATCH' if after == mode else 'MISMATCH'
+        _ok(
+            'SET point_cloud_mode: OK\n'
+            'GET readback:         {} ({}) {}'.format(
+                after, POINT_CLOUD_MODE_NAMES.get(after, 'unknown'), match
+            )
+        )
+    except HesaiPtcError as exc:
+        _fail('SET point_cloud_mode: FAILED ({})'.format(exc))
+
+
 def _print_menu() -> None:
     print(
         '\n  SET (GET → SET → GET, wrapper verifies readback)\n'
         '   10  set_return_mode\n'
         '   11  set_spin_speed (600 or 1200 RPM)\n'
         '   12  set_ptp_lock_offset (1-1000 us)\n'
-        '   13  set_filter_type (0-2; ultra_precise unchanged)\n'
+        '   13  set_filter_type (0-3; ultra_precise unchanged; 3 needs new FW)\n'
+        '   14  set_point_cloud_mode (0-2; needs new FW)\n'
         '    0  quit\n'
         'Choice: ',
         end='',
@@ -231,6 +274,7 @@ def main(argv: list[str] | None = None) -> int:
         11: lambda: test_set_spin_speed(ip, args.timeout),
         12: lambda: test_set_ptp_lock_offset(ip, args.timeout),
         13: lambda: test_set_filter_type(ip, args.timeout),
+        14: lambda: test_set_point_cloud_mode(ip, args.timeout),
     }
 
     while True:

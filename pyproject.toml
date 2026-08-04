@@ -30,6 +30,7 @@ stretch_lidar_show = "pyhesai_wrapper.tools.stretch_lidar_show:main"
 REx_hesai_download_calibration = "pyhesai_wrapper.tools.REx_hesai_download_calibration:main"
 REx_hesai_show_config = "pyhesai_wrapper.tools.REx_hesai_show_config:main"
 REx_hesai_set_config = "pyhesai_wrapper.tools.REx_hesai_set_config:main"
+REx_hesai_upgrade_firmware = "pyhesai_wrapper.tools.REx_hesai_upgrade_firmware:main"
 
 
 

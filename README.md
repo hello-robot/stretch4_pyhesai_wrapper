@@ -96,20 +96,36 @@ SDK-backed JT128 PTC client for return mode, point-cloud filter, PTP lock offset
 ```python
 from pyhesai_wrapper.ptc_client import (
     FILTER_STRONG,
+    FILTER_STRONGEST,
+    POINT_CLOUD_MODE_MAPPING,
     get_point_cloud_config,
+    get_point_cloud_mode,
     get_return_mode,
+    is_new_firmware_supported,
     set_filter_type,
+    set_point_cloud_mode,
     set_return_mode,
     get_ptp_lock_offset_us,
     ptc_reachable,
 )
 
-if ptc_reachable('192.168.1.201'):
-    print(get_return_mode('192.168.1.201'))
-    set_return_mode('192.168.1.201', 2)
-    set_filter_type('192.168.1.201', FILTER_STRONG)  # ultra_precise unchanged
-    print(get_point_cloud_config('192.168.1.201'))
+ip = '192.168.1.201'
+if ptc_reachable(ip):
+    print(get_return_mode(ip))
+    set_return_mode(ip, 2)
+    set_filter_type(ip, FILTER_STRONG)  # ultra_precise unchanged
+    print(get_point_cloud_config(ip))
+
+    # Strongest filter (3) and POINT_CLOUD_MODE need firmware >= 15.AF.B0.00.02.Y
+    if is_new_firmware_supported(ip):
+        set_filter_type(ip, FILTER_STRONGEST)
+        set_point_cloud_mode(ip, POINT_CLOUD_MODE_MAPPING)  # 0 general, 1 mapping, 2 mapping+ground
+        print(get_point_cloud_mode(ip))
 ```
+
+Noise filter levels: `0` disabled, `1` medium, `2` strong, `3` strongest (new FW only).
+
+`is_new_firmware_supported()` is the single firmware gate used by Strongest filter and POINT_CLOUD_MODE. It currently treats inventory `hardware_version` APP letter ≥ `Y` (e.g. `15.AF.B0.00.02.Y0`) as supported. 
 
 #### Show configuration (`REx_hesai_show_config`):
 
@@ -124,7 +140,7 @@ REx_hesai_show_config --left
 REx_hesai_show_config --right
 ```
 
-This retrieves the serial number, model, hardware and software versions, build ID, MAC address, return mode, spin rate, lock offset, ultra-precise mode, noise filter type, PTP status, and active PTP master offset (if PTP is synchronized).
+This retrieves the serial number, model, hardware and software versions, build ID, MAC address, whether new-FW features are supported, return mode, spin rate, lock offset, ultra-precise mode, noise filter type, point-cloud mode (when supported), PTP status, and active PTP master offset (if PTP is synchronized).
 
 #### Modify configuration (`REx_hesai_set_config`):
 
@@ -145,9 +161,32 @@ After accepting the warning, you can select from the interactive options:
 * **10** - Set Return Mode (0 to 5)
 * **11** - Set Spin Speed (600 or 1200 RPM)
 * **12** - Set PTP Lock Offset (1 to 1000 us)
-* **13** - Set Noise Filter Type (0 to 2)
+* **13** - Set Noise Filter Type (0 to 3; `3` / strongest requires new FW)
+* **14** - Set Point Cloud Mode (0 to 2; requires new FW)
 
 Each setting operation performs a baseline GET, followed by the SET command, and finishes with a readback verification GET to guarantee that the hardware successfully applied the modification.
+
+#### Upgrade firmware (`REx_hesai_upgrade_firmware`):
+
+> [!WARNING]
+> Do not power off the lidar during upgrade. The unit reboots after a successful transfer. Upgrade one lidar at a time.
+
+Uploads a **Hesai-provided** JT128 firmware patch via PTC Upgrade Safe Image (`0x83`) and prints transfer progress. The firmware file is not shipped in this repo; obtain it from Hesai.
+
+```bash
+# Right lidar (interactive confirm)
+REx_hesai_upgrade_firmware --right --firmware /path/to/JT128_upgrade.bin
+
+# Left lidar, skip confirm prompt
+REx_hesai_upgrade_firmware --left --firmware /path/to/JT128_upgrade.bin -y
+
+# Explicit IP
+REx_hesai_upgrade_firmware 192.168.1.201 --firmware /path/to/JT128_upgrade.bin
+```
+
+Optional flags: `--timeout` (PTC connect timeout, default 30s), `--reboot-wait` (wait for lidar to return after transfer, default 120s), `-y` / `--yes` (skip confirmation).
+
+The tool prints inventory versions before upload, streams `Progress: xx.x%`, waits for reboot, then prints versions again.
 
 #### Standalone PTC bench test:
 

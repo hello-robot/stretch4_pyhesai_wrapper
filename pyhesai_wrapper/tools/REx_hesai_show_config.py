@@ -19,11 +19,14 @@ from pyhesai_wrapper.ptc_client import (
     get_spin_rate,
     get_ptp_lock_offset_us,
     get_point_cloud_config,
+    get_point_cloud_mode,
     get_lidar_ptp_status,
     get_ptp_diagnostics,
+    is_new_firmware_supported,
     RETURN_MODE_NAMES,
     FILTER_NAMES,
     ULTRA_PRECISE_NAMES,
+    POINT_CLOUD_MODE_NAMES,
     PTP_STATUS_NAMES,
     PTP_STATUS_FREE_RUN,
     HesaiPtcError,
@@ -55,6 +58,11 @@ def show_lidar_info(side: str, ip: str, timeout: float = 2.0) -> None:
         print(f"  FPGA Version:         {inv['fpga_version']}")
         if inv['build_id']:
             print(f"  Build/Signature ID:   {inv['build_id']}")
+        try:
+            new_fw = is_new_firmware_supported(ip, timeout=timeout)
+            print(f"  New FW Features:      {'supported' if new_fw else 'not supported'}")
+        except Exception as e:
+            print(f"  New FW Features:      FAILED ({e})")
     except Exception as e:
         print(f"  INVENTORY INFO:       FAILED to query ({e})")
 
@@ -94,7 +102,16 @@ def show_lidar_info(side: str, ip: str, timeout: float = 2.0) -> None:
     except Exception as e:
         print(f"  Point Cloud Config:   FAILED ({e})")
 
-    # 6. PTP Status
+    # 6. Point Cloud Mode (new FW only)
+    try:
+        pcm = get_point_cloud_mode(ip, timeout=timeout)
+        print(f"  Point Cloud Mode:     {pcm} ({POINT_CLOUD_MODE_NAMES.get(pcm, 'unknown')})")
+    except HesaiPtcError as e:
+        print(f"  Point Cloud Mode:     unavailable ({e})")
+    except Exception as e:
+        print(f"  Point Cloud Mode:     FAILED ({e})")
+
+    # 7. PTP Status
     ptp_status_val = None
     try:
         ptp = get_lidar_ptp_status(ip, timeout=timeout)
@@ -103,7 +120,7 @@ def show_lidar_info(side: str, ip: str, timeout: float = 2.0) -> None:
     except Exception as e:
         print(f"  PTP Status:           FAILED ({e})")
 
-    # 7. PTP Diagnostics (only if PTP enabled / not free run)
+    # 8. PTP Diagnostics (only if PTP enabled / not free run)
     if ptp_status_val is not None and ptp_status_val != PTP_STATUS_FREE_RUN:
         try:
             diag = get_ptp_diagnostics(ip, timeout=timeout)

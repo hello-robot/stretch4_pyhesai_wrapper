@@ -61,11 +61,13 @@ POINT_CLOUD_KEEP_CURRENT = 0xFF
 FILTER_DISABLED = 0
 FILTER_MEDIUM = 1
 FILTER_STRONG = 2
+FILTER_STRONGEST = 3
 
 FILTER_NAMES = {
     FILTER_DISABLED: 'disabled',
     FILTER_MEDIUM: 'medium',
     FILTER_STRONG: 'strong',
+    FILTER_STRONGEST: 'strongest',
 }
 
 ULTRA_PRECISE_NAMES = {
@@ -74,6 +76,27 @@ ULTRA_PRECISE_NAMES = {
     2: 'strong',
     3: 'off',
 }
+
+# POINT_CLOUD_MODE extended PTC subcommands (cmd 0xFF)
+PTC_CMD_HAS_SUBCOMMAND = 0xFF
+PTC_SET_POINT_CLOUD_MODE_SUBCMD = 0x00000164
+PTC_GET_POINT_CLOUD_MODE_SUBCMD = 0x00000165
+PTC_UPGRADE_LIDAR_CMD = 0x83
+
+POINT_CLOUD_MODE_GENERAL = 0
+POINT_CLOUD_MODE_MAPPING = 1
+POINT_CLOUD_MODE_MAPPING_GROUND = 2
+
+POINT_CLOUD_MODE_NAMES = {
+    POINT_CLOUD_MODE_GENERAL: 'general',
+    POINT_CLOUD_MODE_MAPPING: 'mapping',
+    POINT_CLOUD_MODE_MAPPING_GROUND: 'mapping_ground',
+}
+
+# Provisional min APP letter for Strongest filter + POINT_CLOUD_MODE.
+# Update ONLY is_new_firmware_supported() when Hesai confirms the compare rule.
+_NEW_FW_APP_PREFIX = '15.AF.B0.00.02.'
+_NEW_FW_MIN_LETTER = 'Y'
 
 
 class HesaiPtcError(Exception):
@@ -237,9 +260,12 @@ def set_filter_type(ip, filter_type, timeout=2.0, ptc_port=PTC_PORT):
     """
     Set point-cloud filter type; leave ultra_precise unchanged.
 
+    FILTER_STRONGEST (3) requires new firmware (see is_new_firmware_supported).
     Raises HesaiPtcError on SET failure or filter readback mismatch.
     """
     filt = int(filter_type)
+    if filt == FILTER_STRONGEST:
+        require_new_firmware(ip, timeout=timeout, ptc_port=ptc_port)
 
     def _set(client):
         client.set_point_cloud_config_selective(POINT_CLOUD_KEEP_CURRENT, filt)
@@ -287,6 +313,123 @@ def get_inventory_info(ip, timeout=2.0, ptc_port=PTC_PORT):
         'fpga_version': fpga_version,
         'build_id': build_id,
     }
+
+
+def is_new_firmware_supported(ip, timeout=2.0, ptc_port=PTC_PORT):
+    """
+    Return True if lidar FW supports Strongest filter + POINT_CLOUD_MODE.
+
+    Rule: APP letter >= 'Y' for inventory
+    hardware_version strings like 15.AF.B0.00.02.Y0 / ...H0.
+
+    """
+    app = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port)['hardware_version']
+    if not app:
+        return False
+    # Normalize trailing digit bleed (Y0 -> Y) while keeping the letter suffix.
+    normalized = app.rstrip('0123456789')
+    if not normalized.startswith(_NEW_FW_APP_PREFIX):
+        return False
+    suffix = normalized[len(_NEW_FW_APP_PREFIX):]
+    if len(suffix) != 1 or not suffix.isalpha():
+        return False
+    return suffix.upper() >= _NEW_FW_MIN_LETTER
+
+
+def require_new_firmware(ip, timeout=2.0, ptc_port=PTC_PORT):
+    """Raise HesaiPtcError if lidar FW does not support the new PTC features."""
+    if is_new_firmware_supported(ip, timeout=timeout, ptc_port=ptc_port):
+        return
+    app = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port)['hardware_version']
+    raise HesaiPtcError(
+        'Firmware too old for this feature: app={!r} (need {}{} or later)'.format(
+            app, _NEW_FW_APP_PREFIX, _NEW_FW_MIN_LETTER
+        )
+    )
+
+
+def _parse_extended_u8_payload(raw, subcmd):
+    """Parse a 1-byte value from an extended PTC response (optional subcmd echo)."""
+    if isinstance(raw, str):
+        data = raw.encode('latin1')
+    else:
+        data = bytes(raw)
+    if len(data) >= 5 and struct.unpack('>I', data[0:4])[0] == subcmd:
+        return data[4]
+    if len(data) >= 1:
+        return data[0] if len(data) == 1 else data[-1]
+    raise HesaiPtcError(
+        'Extended PTC response too short for subcmd 0x{:08X} ({} bytes)'.format(
+            subcmd, len(data)
+        )
+    )
+
+
+def get_point_cloud_mode(ip, timeout=2.0, ptc_port=PTC_PORT):
+    """Read POINT_CLOUD_MODE via GET [0xFF, 0x00000165]. Requires new firmware."""
+    require_new_firmware(ip, timeout=timeout, ptc_port=ptc_port)
+    payload = struct.pack('>I', PTC_GET_POINT_CLOUD_MODE_SUBCMD)
+
+    def _get(client):
+        raw = client.query_command(PTC_CMD_HAS_SUBCOMMAND, payload)
+        return _parse_extended_u8_payload(raw, PTC_GET_POINT_CLOUD_MODE_SUBCMD)
+
+    return _run(_get, ip, timeout, ptc_port)
+
+
+def set_point_cloud_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT):
+    """
+    Set POINT_CLOUD_MODE via SET [0xFF, 0x00000164] and verify readback.
+
+    Modes: 0 general, 1 mapping, 2 mapping+ground. Requires new firmware.
+    """
+    require_new_firmware(ip, timeout=timeout, ptc_port=ptc_port)
+    mode = int(mode)
+    if mode not in POINT_CLOUD_MODE_NAMES:
+        raise HesaiPtcError(
+            'POINT_CLOUD_MODE must be 0, 1, or 2 (got {})'.format(mode)
+        )
+    payload = struct.pack('>IB', PTC_SET_POINT_CLOUD_MODE_SUBCMD, mode)
+
+    def _set(client):
+        client.query_command(PTC_CMD_HAS_SUBCOMMAND, payload)
+        get_payload = struct.pack('>I', PTC_GET_POINT_CLOUD_MODE_SUBCMD)
+        raw = client.query_command(PTC_CMD_HAS_SUBCOMMAND, get_payload)
+        readback = _parse_extended_u8_payload(raw, PTC_GET_POINT_CLOUD_MODE_SUBCMD)
+        if readback != mode:
+            raise HesaiPtcError(
+                'SetPointCloudMode readback mismatch: expected {}, got {}'.format(
+                    mode, readback
+                )
+            )
+
+    _run(_set, ip, timeout, ptc_port)
+
+
+def upgrade_lidar_firmware(
+    ip,
+    file_path,
+    progress_callback=None,
+    timeout=10.0,
+    ptc_port=PTC_PORT,
+    cmd_id=PTC_UPGRADE_LIDAR_CMD,
+    is_extern=0,
+):
+    """
+    Upload a firmware patch via PTC Upgrade Safe Image (0x83) with progress.
+
+    progress_callback, if given, is called with a float percent (0-100).
+    The lidar typically reboots after a successful transfer.
+    """
+    if not os.path.isfile(file_path):
+        raise HesaiPtcError('Firmware file not found: {}'.format(file_path))
+
+    def _upgrade(client):
+        if progress_callback is not None:
+            client.set_upgrade_percent_callback(progress_callback)
+        client.upgrade_lidar_patch(file_path, int(cmd_id), int(is_extern))
+
+    _run(_upgrade, ip, timeout, ptc_port)
 
 
 
