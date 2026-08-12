@@ -237,7 +237,7 @@ PYBIND11_MODULE(pyhesai_wrapper_cpp, m) {
         .def(py::init<>())
         .def("Init", &HesaiLidarSdk_XYZICRT::Init, "Initialize the Lidar SDK")
         .def("Start", &HesaiLidarSdk_XYZICRT::Start, "Start the SDK processing threads")
-        .def("Stop", &HesaiLidarSdk_XYZICRT::Stop, "Stop the SDK and clean up")
+        .def("Stop", &HesaiLidarSdk_XYZICRT::Stop, py::call_guard<py::gil_scoped_release>(), "Stop the SDK and clean up")
 
         // Wrap the point cloud callback registration
         .def("RegRecvCallback",
