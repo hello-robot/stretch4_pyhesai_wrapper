@@ -38,9 +38,9 @@ This will:
 Both Left and Right Lidars:
 ```python
 
-from pyhesai_wrapper import stream_lidar_left_right
+from pyhesai_wrapper import stream_left_right_lidar
 
-for left, right in stream_lidar_left_right():
+for left, right in stream_left_right_lidar():
    if left is not None:
       print(f"Points shape: {left.points.shape}, timestamp: {left.timestamp}")
    if right is not None:
@@ -50,9 +50,9 @@ for left, right in stream_lidar_left_right():
 Left Lidar:
 
 ```python
-from pyhesai_wrapper import stream_lidar_left
+from pyhesai_wrapper import stream_left_lidar
 
-for frame in stream_lidar_left():
+for frame in stream_left_lidar():
    if frame is not None:
       print(f"Points shape: {frame.points.shape}, timestamp: {frame.timestamp}")
 ```
@@ -60,9 +60,9 @@ for frame in stream_lidar_left():
 Right Lidar:
 
 ```python
-from pyhesai_wrapper import stream_lidar_right
+from pyhesai_wrapper import stream_right_lidar
 
-for frame in stream_lidar_right():
+for frame in stream_right_lidar():
    if frame is not None:
       print(f"Points shape: {frame.points.shape}, timestamp: {frame.timestamp}")
 ```
@@ -70,7 +70,7 @@ for frame in stream_lidar_right():
 Alternatively, you can poll the next frame using `next()`:
 
 ```python
-left, right  = stream_lidar_left_right()
+left, right  = stream_left_right_lidar()
 left_frame = next(left)
 right_frame = next(right)
 ```

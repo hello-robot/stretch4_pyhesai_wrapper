@@ -2,7 +2,7 @@ from typing import Generator
 from pyhesai_wrapper.hesai_lidar import LidarPointCloudFrame, HesaiLidar
 from itertools import chain
 
-def stream_lidar_left() -> Generator[LidarPointCloudFrame | None, None, None]:
+def stream_left_lidar() -> Generator[LidarPointCloudFrame | None, None, None]:
     lidar = HesaiLidar(use_right_lidar=False)
     lidar.start()
     try:
@@ -11,7 +11,7 @@ def stream_lidar_left() -> Generator[LidarPointCloudFrame | None, None, None]:
     finally:
         lidar.stop()
 
-def stream_lidar_left_blocking() -> Generator[LidarPointCloudFrame, None, None]:
+def stream_left_lidar_blocking() -> Generator[LidarPointCloudFrame, None, None]:
     lidar = HesaiLidar(use_right_lidar=False)
     lidar.start()
     try:
@@ -19,7 +19,7 @@ def stream_lidar_left_blocking() -> Generator[LidarPointCloudFrame, None, None]:
     finally:
         lidar.stop()
 
-def stream_lidar_right() -> Generator[LidarPointCloudFrame | None, None, None]:
+def stream_right_lidar() -> Generator[LidarPointCloudFrame | None, None, None]:
     lidar = HesaiLidar(use_right_lidar=True)
     lidar.start()
     try:
@@ -28,7 +28,7 @@ def stream_lidar_right() -> Generator[LidarPointCloudFrame | None, None, None]:
     finally:
         lidar.stop()
 
-def stream_lidar_right_blocking() -> Generator[LidarPointCloudFrame, None, None]:
+def stream_right_lidar_blocking() -> Generator[LidarPointCloudFrame, None, None]:
     lidar = HesaiLidar(use_right_lidar=True)
     lidar.start()
     try:
@@ -36,5 +36,5 @@ def stream_lidar_right_blocking() -> Generator[LidarPointCloudFrame, None, None]
     finally:
         lidar.stop()
 
-def stream_lidar_left_right() -> Generator[tuple[LidarPointCloudFrame | None,LidarPointCloudFrame | None], None, None]:
-    yield from zip(stream_lidar_left(), stream_lidar_right())
+def stream_left_right_lidar() -> Generator[tuple[LidarPointCloudFrame | None,LidarPointCloudFrame | None], None, None]:
+    yield from zip(stream_left_lidar(), stream_right_lidar())
