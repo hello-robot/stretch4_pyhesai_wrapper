@@ -35,17 +35,44 @@ This will:
 
 ### Use in your python code
 
+Both Left and Right Lidars:
+```python
+
+from pyhesai_wrapper import stream_lidar_left_right
+
+for left, right in stream_lidar_left_right():
+   if left is not None:
+      print(f"Points shape: {left.points.shape}, timestamp: {left.timestamp}")
+   if right is not None:
+      print(f"Points shape: {right.points.shape}, timestamp: {right.timestamp}")
+```
+
+Left Lidar:
+
 ```python
 from pyhesai_wrapper import stream_lidar_left
 
-def main():
-    # Continually yields LidarPointCloudFrame objects as long as it's running
-    for frame in stream_lidar_left():
-        if frame is not None:
-            print(f"Points shape: {frame.points.shape}, timestamp: {frame.timestamp}")
+for frame in stream_lidar_left():
+   if frame is not None:
+      print(f"Points shape: {frame.points.shape}, timestamp: {frame.timestamp}")
+```
 
-if __name__ == "__main__":
-    main()
+Right Lidar:
+
+```python
+from pyhesai_wrapper import stream_lidar_right
+
+for frame in stream_lidar_right():
+   if frame is not None:
+      print(f"Points shape: {frame.points.shape}, timestamp: {frame.timestamp}")
+```
+
+Alternatively, you can poll the next frame using `next()`:
+
+```python
+left, right  = stream_lidar_left_right()
+left_frame = next(left)
+right_frame = next(right)
 ```
 
 #### The `LidarPointCloudFrame` Dataclass

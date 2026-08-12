@@ -23,9 +23,10 @@ class LidarPointCloudFrame:
     timestamp_system: float 
     confidence: np.ndarray
     ring: np.ndarray
+    name: str|None = None
 
     @staticmethod
-    def from_named_numpy_array(pc_array: np.ndarray) -> 'LidarPointCloudFrame':
+    def from_named_numpy_array(pc_array: np.ndarray, lidar_name:str|None=None) -> 'LidarPointCloudFrame':
         """
         The logic for unpacking the lidar point cloud assumes the point cloud is from a Hesai lidar.
         """
@@ -40,7 +41,8 @@ class LidarPointCloudFrame:
             timestamp=pc_array['timestamp'],
             timestamp_system=time.time(),
             confidence=pc_array['confidence'],
-            ring=pc_array['ring']
+            ring=pc_array['ring'],
+            name=lidar_name
         )
 
 
@@ -50,8 +52,8 @@ class HesaiLidar():
 
         logging.basicConfig(level=logging.INFO)
 
-        side = "right" if use_right_lidar else "left"
-        self.cfg = CONFIG[f"{side}_lidar"]
+        self.side = "right" if use_right_lidar else "left"
+        self.cfg = CONFIG[f"{self.side}_lidar"]
 
         self.ip = self.cfg["ip"]
         self.ptc_port = self.cfg["ptc_port"]
@@ -79,7 +81,7 @@ class HesaiLidar():
         
         def pointcloud_callback(frame):
             pc_array = np.array(frame.points)
-            lidar_frame = LidarPointCloudFrame.from_named_numpy_array(pc_array)
+            lidar_frame = LidarPointCloudFrame.from_named_numpy_array(pc_array, self.side)
             try:
                 # If the queue is full, remove the oldest frame to make space
                 if self.frame_queue.full():
@@ -106,11 +108,13 @@ class HesaiLidar():
         self.started = True
 
     def stop(self):
+        print("Calling stop ")
         if hasattr(self, 'lidar_driver') and self.lidar_driver is not None:
             self.lidar_driver.Stop()
             self.lidar_driver = None
         self.started = False
         self.connected = False
+        print("Done calling stop")
 
     def get_next(self) -> LidarPointCloudFrame | None:
         try:
