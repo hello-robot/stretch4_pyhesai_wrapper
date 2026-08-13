@@ -93,10 +93,13 @@ POINT_CLOUD_MODE_NAMES = {
     POINT_CLOUD_MODE_MAPPING_GROUND: 'mapping_ground',
 }
 
-# Provisional min APP letter for Strongest filter + POINT_CLOUD_MODE.
-# Update ONLY is_new_firmware_supported() when Hesai confirms the compare rule.
-_NEW_FW_APP_PREFIX = '15.AF.B0.00.02.'
-_NEW_FW_MIN_LETTER = 'Y'
+# Minimum production triple for Strongest filter + POINT_CLOUD_MODE
+# (Hesai release 15.AF.B0.00.02.Y / 1.b.0028 / 2.b.0692).
+_NEW_FW_APP_BASE = '15.AF.B0.00.'
+_NEW_FW_MIN_APP = (2, 'Y')       # 15.AF.B0.00.02.Y
+_NEW_FW_MIN_SENSOR = (1, 28)     # 1.b.0028
+_NEW_FW_MIN_CONTROLLER = (2, 692)  # 2.b.0692
+_NEW_FW_MIN_LABEL = '15.AF.B0.00.02.Y / 1.b.0028 / 2.b.0692'
 
 
 class HesaiPtcError(Exception):
@@ -315,35 +318,73 @@ def get_inventory_info(ip, timeout=2.0, ptc_port=PTC_PORT):
     }
 
 
+def _normalize_app_version(app):
+    """Strip trailing digit bleed from inventory APP (Y0 -> Y)."""
+    if not app:
+        return ''
+    return app.strip().rstrip('0123456789')
+
+
+def _parse_app_version(app):
+    """
+    Parse APP like 15.AF.B0.00.02.Y into (section, letter), e.g. (2, 'Y').
+
+    Returns None if the string does not match the expected JT128 APP pattern.
+    """
+    normalized = _normalize_app_version(app)
+    if not normalized.startswith(_NEW_FW_APP_BASE):
+        return None
+    rest = normalized[len(_NEW_FW_APP_BASE):]
+    if '.' not in rest:
+        return None
+    section_s, letter = rest.rsplit('.', 1)
+    if not section_s.isdigit() or len(letter) != 1 or not letter.isalpha():
+        return None
+    return (int(section_s), letter.upper())
+
+
+def _parse_bit_version(ver):
+    """Parse sensor/controller strings like 1.b.0028 into (major, patch_num)."""
+    if not ver:
+        return None
+    parts = ver.strip().split('.')
+    if len(parts) != 3 or parts[1].lower() != 'b':
+        return None
+    try:
+        return (int(parts[0]), int(parts[2]))
+    except ValueError:
+        return None
+
+
 def is_new_firmware_supported(ip, timeout=2.0, ptc_port=PTC_PORT):
     """
     Return True if lidar FW supports Strongest filter + POINT_CLOUD_MODE.
-
-    Rule: APP letter >= 'Y' for inventory
-    hardware_version strings like 15.AF.B0.00.02.Y0 / ...H0.
-
     """
-    app = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port)['hardware_version']
-    if not app:
+    inv = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port)
+    app = _parse_app_version(inv.get('hardware_version', ''))
+    sensor = _parse_bit_version(inv.get('software_version', ''))
+    controller = _parse_bit_version(inv.get('fpga_version', ''))
+    if app is None or sensor is None or controller is None:
         return False
-    # Normalize trailing digit bleed (Y0 -> Y) while keeping the letter suffix.
-    normalized = app.rstrip('0123456789')
-    if not normalized.startswith(_NEW_FW_APP_PREFIX):
-        return False
-    suffix = normalized[len(_NEW_FW_APP_PREFIX):]
-    if len(suffix) != 1 or not suffix.isalpha():
-        return False
-    return suffix.upper() >= _NEW_FW_MIN_LETTER
+    return (
+        app >= _NEW_FW_MIN_APP
+        and sensor >= _NEW_FW_MIN_SENSOR
+        and controller >= _NEW_FW_MIN_CONTROLLER
+    )
 
 
 def require_new_firmware(ip, timeout=2.0, ptc_port=PTC_PORT):
     """Raise HesaiPtcError if lidar FW does not support the new PTC features."""
     if is_new_firmware_supported(ip, timeout=timeout, ptc_port=ptc_port):
         return
-    app = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port)['hardware_version']
+    inv = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port)
     raise HesaiPtcError(
-        'Firmware too old for this feature: app={!r} (need {}{} or later)'.format(
-            app, _NEW_FW_APP_PREFIX, _NEW_FW_MIN_LETTER
+        'Firmware too old for this feature: app={!r} sensor={!r} controller={!r} '
+        '(need {} or later on all three)'.format(
+            inv.get('hardware_version', ''),
+            inv.get('software_version', ''),
+            inv.get('fpga_version', ''),
+            _NEW_FW_MIN_LABEL,
         )
     )
 

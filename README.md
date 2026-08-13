@@ -116,7 +116,8 @@ if ptc_reachable(ip):
     set_filter_type(ip, FILTER_STRONG)  # ultra_precise unchanged
     print(get_point_cloud_config(ip))
 
-    # Strongest filter (3) and POINT_CLOUD_MODE need firmware >= 15.AF.B0.00.02.Y
+    # Strongest filter (3) and POINT_CLOUD_MODE need FW
+    # 15.AF.B0.00.02.Y / 1.b.0028 / 2.b.0692
     if is_new_firmware_supported(ip):
         set_filter_type(ip, FILTER_STRONGEST)
         set_point_cloud_mode(ip, POINT_CLOUD_MODE_MAPPING)  # 0 general, 1 mapping, 2 mapping+ground
@@ -125,8 +126,7 @@ if ptc_reachable(ip):
 
 Noise filter levels: `0` disabled, `1` medium, `2` strong, `3` strongest (new FW only).
 
-`is_new_firmware_supported()` is the single firmware gate used by Strongest filter and POINT_CLOUD_MODE. It currently treats inventory `hardware_version` APP letter ≥ `Y` (e.g. `15.AF.B0.00.02.Y0`) as supported. 
-
+`is_new_firmware_supported()` is the single firmware gate used by Strongest filter and POINT_CLOUD_MODE. Per Hesai, it requires all three inventory patches at or above `15.AF.B0.00.02.Y` / `1.b.0028` / `2.b.0692` (wrapper fields `hardware_version`, `software_version`, `fpga_version`). When a newer mass-production firmware ships, re-check Hesai’s version naming (especially if APP moves past `…02.Z` / to `…03.X`) and update that function.
 #### Show configuration (`REx_hesai_show_config`):
 
 To view complete lidar information, return mode, spin rate, PTP status, and point cloud settings:
