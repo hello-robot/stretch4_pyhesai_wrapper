@@ -19,6 +19,7 @@ from pyhesai_wrapper.ptc_client import (
     HesaiPtcError,
     get_inventory_info,
     ptc_reachable,
+    reboot_lidar,
     upgrade_lidar_firmware,
 )
 
@@ -143,7 +144,12 @@ def main(argv: list[str] | None = None) -> int:
 
     if last_pct[0] < 100.0:
         print('\r  Progress: 100.0%', end='', flush=True)
-    print('\nTransfer complete. Lidar should reboot automatically.')
+    print('\nTransfer complete. Sending reboot command...')
+
+    try:
+        reboot_lidar(ip, timeout=args.timeout)
+    except HesaiPtcError as exc:
+        print(f'  (reboot command reply not received, likely rebooting: {exc})')
 
     if not _wait_for_reboot(ip, args.timeout, args.reboot_wait, poll_s=2.0):
         print(

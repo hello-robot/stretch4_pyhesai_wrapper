@@ -82,6 +82,7 @@ PTC_CMD_HAS_SUBCOMMAND = 0xFF
 PTC_SET_POINT_CLOUD_MODE_SUBCMD = 0x00000164
 PTC_GET_POINT_CLOUD_MODE_SUBCMD = 0x00000165
 PTC_UPGRADE_LIDAR_CMD = 0x83
+PTC_REBOOT_LIDAR_CMD = 0x10
 
 POINT_CLOUD_MODE_GENERAL = 0
 POINT_CLOUD_MODE_MAPPING = 1
@@ -473,5 +474,13 @@ def upgrade_lidar_firmware(
     _run(_upgrade, ip, timeout, ptc_port)
 
 
+def reboot_lidar(ip, timeout=2.0, ptc_port=PTC_PORT):
+    """
+    Send PTC Reboot Lidar (0x10).
+    """
+    def _reboot(client):
+        client.query_command(PTC_REBOOT_LIDAR_CMD, b'')
+
+    _run(_reboot, ip, timeout, ptc_port)
 
 
