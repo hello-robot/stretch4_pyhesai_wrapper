@@ -187,7 +187,30 @@ REx_hesai_upgrade_firmware 192.168.1.201 --firmware /path/to/JT128_upgrade.patch
 Optional flags: `--timeout` (PTC connect timeout, default 30s), `--reboot-wait` (wait for lidar to return after transfer, default 120s), `-y` / `--yes` (skip confirmation).
 
 The tool prints inventory versions before upload, streams `Progress: xx.x%`, waits for reboot, then prints versions again.
+The version after upgrade might not show all the version 
+```
+Versions after upgrade:
+  [after]
+  Hardware Version:     15.AF.B0.00.02.Y0
+  Software/Firmware:    1.b.0028
+  FPGA Version:         
+  Build/Signature ID:   0x00000000
+```
+You can run `REx_hesai_show_config` and check the inventory info
 
+```
+  INVENTORY INFO
+  ------------------------------------------------------------------
+  Model:                JT128
+  Serial Number:        JT3AC9509338CB50
+  MAC Address:          ec:9f:0d:02:f1:cd
+  Calibration/Mfg Date: 2025-03-05
+  Hardware Version:     15.AF.B0.00.02.Y0
+  Software/Firmware:    1.b.0028
+  FPGA Version:         2.b.0692
+  Build/Signature ID:   0x791C2330
+  New FW Features:      supported
+```
 #### Standalone PTC bench test:
 
 You can run the standalone PTC test menu directly:
