@@ -175,13 +175,13 @@ Uploads a **Hesai-provided** JT128 firmware patch via PTC Upgrade Safe Image (`0
 
 ```bash
 # Right lidar (interactive confirm)
-REx_hesai_upgrade_firmware --right --firmware /path/to/JT128_upgrade.bin
+REx_hesai_upgrade_firmware --right --firmware /path/to/JT128_upgrade.patch
 
 # Left lidar, skip confirm prompt
-REx_hesai_upgrade_firmware --left --firmware /path/to/JT128_upgrade.bin -y
+REx_hesai_upgrade_firmware --left --firmware /path/to/JT128_upgrade.patch -y
 
 # Explicit IP
-REx_hesai_upgrade_firmware 192.168.1.201 --firmware /path/to/JT128_upgrade.bin
+REx_hesai_upgrade_firmware 192.168.1.201 --firmware /path/to/JT128_upgrade.patch
 ```
 
 Optional flags: `--timeout` (PTC connect timeout, default 30s), `--reboot-wait` (wait for lidar to return after transfer, default 120s), `-y` / `--yes` (skip confirmation).
