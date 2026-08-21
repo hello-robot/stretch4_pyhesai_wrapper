@@ -101,53 +101,41 @@ set(HESAI_SDK_LIBS
     ${HESAI_SDK_BUILD_DIR}/libhesai/SerialClient/libserialClient_lib.a
 )
 
-# Check if SDK libraries exist, if not build them
-set(NEED_SDK_BUILD FALSE)
-foreach(lib ${HESAI_SDK_LIBS})
-    if(NOT EXISTS ${lib})
-        set(NEED_SDK_BUILD TRUE)
-        break()
-    endif()
-endforeach()
+message(STATUS "Building Hesai SDK if needed...")
 
-if(NEED_SDK_BUILD)
-    message(STATUS "Building Hesai SDK...")
+# Create build directory
+file(MAKE_DIRECTORY ${HESAI_SDK_BUILD_DIR})
 
-    # Create build directory
-    file(MAKE_DIRECTORY ${HESAI_SDK_BUILD_DIR})
+# Configure the SDK
+execute_process(
+    COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release ${HESAI_SDK_DIR}
+    WORKING_DIRECTORY ${HESAI_SDK_BUILD_DIR}
+    RESULT_VARIABLE SDK_CONFIG_RESULT
+)
 
-    # Configure the SDK
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} -DCMAKE_BUILD_TYPE=Release ${HESAI_SDK_DIR}
-        WORKING_DIRECTORY ${HESAI_SDK_BUILD_DIR}
-        RESULT_VARIABLE SDK_CONFIG_RESULT
-    )
-
-    if(NOT SDK_CONFIG_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to configure Hesai SDK")
-    endif()
-
-    # Build the SDK
-    include(ProcessorCount)
-    ProcessorCount(N)
-    if(N EQUAL 0)
-        set(N 1)
-    endif()
-
-    execute_process(
-        COMMAND ${CMAKE_COMMAND} --build . -j ${N}
-        WORKING_DIRECTORY ${HESAI_SDK_BUILD_DIR}
-        RESULT_VARIABLE SDK_BUILD_RESULT
-    )
-
-    if(NOT SDK_BUILD_RESULT EQUAL 0)
-        message(FATAL_ERROR "Failed to build Hesai SDK")
-    endif()
-
-    message(STATUS "Hesai SDK built successfully")
-else()
-    message(STATUS "Hesai SDK already built")
+if(NOT SDK_CONFIG_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to configure Hesai SDK")
 endif()
+
+# Build the SDK. CMake's dependency tracking keeps this a no-op when sources
+# and outputs are already current.
+include(ProcessorCount)
+ProcessorCount(N)
+if(N EQUAL 0)
+    set(N 1)
+endif()
+
+execute_process(
+    COMMAND ${CMAKE_COMMAND} --build . -j ${N}
+    WORKING_DIRECTORY ${HESAI_SDK_BUILD_DIR}
+    RESULT_VARIABLE SDK_BUILD_RESULT
+)
+
+if(NOT SDK_BUILD_RESULT EQUAL 0)
+    message(FATAL_ERROR "Failed to build Hesai SDK")
+endif()
+
+message(STATUS "Hesai SDK build complete")
 
 # --- Configure Include Directories ---
 
