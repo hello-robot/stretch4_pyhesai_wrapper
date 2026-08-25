@@ -1,5 +1,5 @@
 from typing import Generator
-from pyhesai_wrapper.hesai_lidar import LidarPointCloudFrame, HesaiLidar
+from stretch4_pyhesai_wrapper.hesai_lidar import LidarPointCloudFrame, HesaiLidar
 from itertools import chain
 
 def stream_lidar_left() -> Generator[LidarPointCloudFrame | None, None, None]:
