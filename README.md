@@ -1,39 +1,13 @@
 # stretch4_pyhesai_wrapper
 
-This repository holds code that is intended to provide a Python interface to the Hesai JT128 hemispherical LiDAR.
+This repository holds code that provides a Python interface to the Hesai JT128 hemispherical LiDAR.
 
-# How to Build and Run
-
-### Prerequisites:
-* A C++17 compiler (like g++).
-* cmake (version 3.14 or higher, e.g., `sudo apt install cmake`).
-* Python 3.12+ and pip (or uv).
-* Git (for cloning the Hesai SDK).
-* The Hesai SDK's system dependencies: `libpcap-dev`, `libssl-dev` (e.g., `sudo apt install libpcap-dev libssl-dev`).
-
-### Setup:
-
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-
-The build process is now fully automated. Simply run:
-
-```bash
-pip install .
+This package can be installed by: 
+```
+python3 -m pip install -U hello-robot-stretch4-pyhesai-wrapper
 ```
 
-This will:
-
-1. Read pyproject.toml
-1. Use scikit-build to run CMakeLists.txt.
-1. CMake will find pybind11, the SDK headers, and the SDK libraries.
-1. It will compile pybind_hesai_sdk.cpp and link it against all the .a and .so files.
-1. It will create a Python module file (e.g., pyhesai_wrapper_cpp.cpython-310-x86_64-linux-gnu.so) and install it into your Python environment.
-1. If the build is successful, the stretch4_pyhesai_wrapper module is now installed and available to all Python scripts in your environment.
-
-### Use in your python code
+## Details
 
 Both Left and Right Lidars:
 ```python
@@ -75,7 +49,7 @@ left_frame = next(left)
 right_frame = next(right)
 ```
 
-#### The `LidarPointCloudFrame` Dataclass
+### The `LidarPointCloudFrame` Dataclass
 When you fetch points using `lidar.get_next()` or via the streaming generators, the system returns a `LidarPointCloudFrame` object (or `None` if no new data is available yet). The properties of this object are:
 * `points`: A NumPy array of shape `(N, 3)` containing the X, Y, and Z Cartesian coordinates of the captured points (`dtype=float32`).
 * `intensity`: A NumPy 1D array of shape `(N,)` containing the return intensity values (`dtype=uint8`).
@@ -248,3 +222,33 @@ You can run the standalone PTC test menu directly:
 python3 test/ptc_test.py --left
 ```
 
+## Building
+
+### Prerequisites:
+* A C++17 compiler (like g++).
+* cmake (version 3.14 or higher, e.g., `sudo apt install cmake`).
+* Python 3.12+ and pip (or uv).
+* Git (for cloning the Hesai SDK).
+* The Hesai SDK's system dependencies: `libpcap-dev`, `libssl-dev` (e.g., `sudo apt install libpcap-dev libssl-dev`).
+
+### Setup:
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+The build process is now fully automated. Simply run:
+
+```bash
+pip install .
+```
+
+This will:
+
+1. Read pyproject.toml
+1. Use scikit-build to run CMakeLists.txt.
+1. CMake will find pybind11, the SDK headers, and the SDK libraries.
+1. It will compile pybind_hesai_sdk.cpp and link it against all the .a and .so files.
+1. It will create a Python module file (e.g., pyhesai_wrapper_cpp.cpython-310-x86_64-linux-gnu.so) and install it into your Python environment.
+1. If the build is successful, the stretch4_pyhesai_wrapper module is now installed and available to all Python scripts in your environment.
