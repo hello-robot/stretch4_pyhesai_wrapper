@@ -1,3 +1,4 @@
+import queue
 import threading
 from typing import Generator
 from stretch4_pyhesai_wrapper.hesai_lidar import LidarPointCloudFrame, HesaiLidar
@@ -39,11 +40,9 @@ def stream_lidar_right_blocking() -> Generator[LidarPointCloudFrame, None, None]
 
 def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame | None,LidarPointCloudFrame | None], None, None]:
     right = HesaiLidar(use_right_lidar=True, queue_size=3)
-    right.registerCallback(recv, right.side)
     left = HesaiLidar(use_right_lidar=False, queue_size=3)
-    left.registerCallback(recv, left.side)
 
-    pair_queue = queue.Queue(max_size=3)
+    pair_queue = queue.Queue(maxsize=3)
     recv_lock = threading.Lock()
     slop = 0.06
     def recv(msg, name):
@@ -56,6 +55,8 @@ def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame | None,LidarPoin
                     pair_queue.put_nowait((left_frame, right_frame))
                     break
 
+    right.registerCallback(recv, right.side)
+    left.registerCallback(recv, left.side)
     right.start()
     left.start()
     try:
