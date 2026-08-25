@@ -1,3 +1,4 @@
+import threading
 from typing import Generator
 from stretch4_pyhesai_wrapper.hesai_lidar import LidarPointCloudFrame, HesaiLidar
 from itertools import chain
@@ -36,5 +37,34 @@ def stream_lidar_right_blocking() -> Generator[LidarPointCloudFrame, None, None]
     finally:
         lidar.stop()
 
-def stream_lidar_left_right() -> Generator[tuple[LidarPointCloudFrame | None,LidarPointCloudFrame | None], None, None]:
-    yield from zip(stream_lidar_left(), stream_lidar_right())
+def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame | None,LidarPointCloudFrame | None], None, None]:
+    right = HesaiLidar(use_right_lidar=True, queue_size=3)
+    right.registerCallback(recv, right.side)
+    left = HesaiLidar(use_right_lidar=False, queue_size=3)
+    left.registerCallback(recv, left.side)
+
+    pair_queue = queue.Queue(max_size=3)
+    recv_lock = threading.Lock()
+    slop = 0.06
+    def recv(msg, name):
+        with recv_lock:
+            other_queue = right.frame_queue if name == 'left' else left.frame_queue
+            for of in other_queue:
+                if abs(of.timestamp[0] - msg.timestamp[0]) < slop:
+                    left_frame = msg if name == 'left' else of
+                    right_frame = of if name == 'left' else msg
+                    pair_queue.put_nowait((left_frame, right_frame))
+                    break
+
+    right.start()
+    left.start()
+    try:
+        while True:
+            try:
+                # timeout to be reponsive to keyboard interrupts
+                yield pair_queue.get(timeout=0.5)
+            except queue.Empty:
+                continue
+    finally:
+        right.stop()
+        left.stop()

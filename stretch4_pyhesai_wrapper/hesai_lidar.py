@@ -48,7 +48,7 @@ class LidarPointCloudFrame:
 
 class HesaiLidar():
 
-    def __init__(self, use_right_lidar=False):
+    def __init__(self, use_right_lidar=False, queue_size=2):
 
         logging.basicConfig(level=logging.INFO)
 
@@ -59,11 +59,18 @@ class HesaiLidar():
         self.ptc_port = self.cfg["ptc_port"]
         self.correction_file_path = self.cfg["correction_file"]
 
-        self.frame_queue = queue.Queue(maxsize=2)
+        self.frame_queue = queue.Queue(maxsize=queue_size)
+        self.on_msg_cbs = []
 
         self.connected = False
         self.started = False
-    
+
+    def registerCallback(self, callback, *args):
+        """Expects a callback that can be called
+        method(frame: LidarPointCloudFrame, *args)
+        """
+        self.on_msg_cbs.append((callback, args))
+
     def connect(self):
         # Instatiate PyRSDriver
         self.lidar_driver = HesaiLidarSdk_XYZICRT()
@@ -87,6 +94,11 @@ class HesaiLidar():
                 if self.frame_queue.full():
                     self.frame_queue.get_nowait()
                 self.frame_queue.put_nowait(lidar_frame)
+
+                # call on_msg callbacks
+                if self.on_msg_cbs:
+                    for (cb, args) in self.on_msg_cbs:
+                        cb(*(lidar_frame, args))
             except queue.Empty:
                 pass
             except queue.Full:
