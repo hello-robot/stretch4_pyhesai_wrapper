@@ -11,7 +11,7 @@ import struct
 import sys
 import yaml
 
-from pyhesai_wrapper import pyhesai_wrapper_cpp as _cpp
+from stretch4_pyhesai_wrapper import pyhesai_wrapper_cpp as _cpp
 
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), "config.yaml")
 with open(CONFIG_PATH, "r") as f:

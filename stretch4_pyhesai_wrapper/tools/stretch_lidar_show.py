@@ -2,7 +2,7 @@ import argparse
 import time
 import numpy as np
 
-from pyhesai_wrapper import HesaiLidar, stream_lidar_left, stream_lidar_right, stream_lidar_left_right, LidarPointCloudFrame
+from stretch4_pyhesai_wrapper import HesaiLidar, stream_lidar_left, stream_lidar_right, stream_lidar_left_right, LidarPointCloudFrame
 
 
 from stretch4_urdf import get_urdf_from_robot_params, get_transform

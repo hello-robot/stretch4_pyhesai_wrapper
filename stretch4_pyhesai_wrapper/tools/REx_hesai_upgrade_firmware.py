@@ -12,7 +12,7 @@ import argparse
 import sys
 import time
 
-from pyhesai_wrapper.ptc_client import (
+from stretch4_pyhesai_wrapper.ptc_client import (
     LEFT_LIDAR_IP,
     RIGHT_LIDAR_IP,
     PTC_PORT,

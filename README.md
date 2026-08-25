@@ -1,44 +1,18 @@
-# pyhesai_wrapper
+# stretch4_pyhesai_wrapper
 
-This repository holds code that is intended to provide a Python interface to the Hesai JT128 hemispherical LiDAR.
+This repository holds code that provides a Python interface to the Hesai JT128 hemispherical LiDAR.
 
-# How to Build and Run
-
-### Prerequisites:
-* A C++17 compiler (like g++).
-* cmake (version 3.14 or higher, e.g., `sudo apt install cmake`).
-* Python 3.12+ and pip (or uv).
-* Git (for cloning the Hesai SDK).
-* The Hesai SDK's system dependencies: `libpcap-dev`, `libssl-dev` (e.g., `sudo apt install libpcap-dev libssl-dev`).
-
-### Setup:
-
-   ```bash
-   python3 -m venv .venv
-   source .venv/bin/activate
-   ```
-
-The build process is now fully automated. Simply run:
-
-```bash
-pip install .
+This package can be installed by: 
+```
+python3 -m pip install -U hello-robot-stretch4-pyhesai-wrapper
 ```
 
-This will:
-
-1. Read pyproject.toml
-1. Use scikit-build to run CMakeLists.txt.
-1. CMake will find pybind11, the SDK headers, and the SDK libraries.
-1. It will compile pybind_hesai_sdk.cpp and link it against all the .a and .so files.
-1. It will create a Python module file (e.g., pyhesai_wrapper_cpp.cpython-310-x86_64-linux-gnu.so) and install it into your Python environment.
-1. If the build is successful, the pyhesai_wrapper module is now installed and available to all Python scripts in your environment.
-
-### Use in your python code
+## Details
 
 Both Left and Right Lidars:
 ```python
 
-from pyhesai_wrapper import stream_lidar_left_right
+from stretch4_pyhesai_wrapper import stream_lidar_left_right
 
 for left, right in stream_lidar_left_right():
    if left is not None:
@@ -50,7 +24,7 @@ for left, right in stream_lidar_left_right():
 Left Lidar:
 
 ```python
-from pyhesai_wrapper import stream_lidar_left
+from stretch4_pyhesai_wrapper import stream_lidar_left
 
 for frame in stream_lidar_left():
    if frame is not None:
@@ -60,7 +34,7 @@ for frame in stream_lidar_left():
 Right Lidar:
 
 ```python
-from pyhesai_wrapper import stream_lidar_right
+from stretch4_pyhesai_wrapper import stream_lidar_right
 
 for frame in stream_lidar_right():
    if frame is not None:
@@ -75,7 +49,7 @@ left_frame = next(left)
 right_frame = next(right)
 ```
 
-#### The `LidarPointCloudFrame` Dataclass
+### The `LidarPointCloudFrame` Dataclass
 When you fetch points using `lidar.get_next()` or via the streaming generators, the system returns a `LidarPointCloudFrame` object (or `None` if no new data is available yet). The properties of this object are:
 * `points`: A NumPy array of shape `(N, 3)` containing the X, Y, and Z Cartesian coordinates of the captured points (`dtype=float32`).
 * `intensity`: A NumPy 1D array of shape `(N,)` containing the return intensity values (`dtype=uint8`).
@@ -86,7 +60,7 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
 ### Tools:
 
 #### Live Lidar test (`tools/stretch_lidar_show.py`):
-1. Edit `pyhesai_wrapper/config.yaml` to configure your lidar settings:
+1. Edit `stretch4_pyhesai_wrapper/config.yaml` to configure your lidar settings:
    - Update `device_ip_address` to match your lidar's IP (default: `192.168.1.201`)
    - Update `correction_file_path` to point to your lidar's correction file
    - Optionally update other parameters like `udp_port`, `ptc_port`, etc.
@@ -104,7 +78,7 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
 4. You should see point cloud data streaming from the lidar. Press Ctrl-C to stop.
 
 #### Download calibration (`tools/REx_hesai_download_calibration.py`):
-1. Edit `pyhesai_wrapper/config.yaml` to configure your lidar settings:
+1. Edit `stretch4_pyhesai_wrapper/config.yaml` to configure your lidar settings:
    - Update `device_ip_address` to match your lidar's IP (default: `192.168.1.201`)
    - Update `ptc_port` to match your lidar's PTC port (default: `9347`)
 2. Make sure your machine is on the same network as the lidar.
@@ -118,12 +92,12 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
    ```
 4. You should see calibration data being downloaded from the lidar to the  `$HELLO_FLEET_PATH/$HELLO_FLEET_ID/calibration_hesais`directory.
 
-#### PTC getters/setters (`pyhesai_wrapper/ptc_client.py`):
+#### PTC getters/setters (`stretch4_pyhesai_wrapper/ptc_client.py`):
 
 SDK-backed JT128 PTC client for return mode, point-cloud filter, PTP lock offset, diagnostics, and reachability checks.
 
 ```python
-from pyhesai_wrapper.ptc_client import (
+from stretch4_pyhesai_wrapper.ptc_client import (
     FILTER_STRONG,
     FILTER_STRONGEST,
     POINT_CLOUD_MODE_MAPPING,
@@ -248,3 +222,33 @@ You can run the standalone PTC test menu directly:
 python3 test/ptc_test.py --left
 ```
 
+## Building
+
+### Prerequisites:
+* A C++17 compiler (like g++).
+* cmake (version 3.14 or higher, e.g., `sudo apt install cmake`).
+* Python 3.12+ and pip (or uv).
+* Git (for cloning the Hesai SDK).
+* The Hesai SDK's system dependencies: `libpcap-dev`, `libssl-dev` (e.g., `sudo apt install libpcap-dev libssl-dev`).
+
+### Setup:
+
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   ```
+
+The build process is now fully automated. Simply run:
+
+```bash
+pip install .
+```
+
+This will:
+
+1. Read pyproject.toml
+1. Use scikit-build to run CMakeLists.txt.
+1. CMake will find pybind11, the SDK headers, and the SDK libraries.
+1. It will compile pybind_hesai_sdk.cpp and link it against all the .a and .so files.
+1. It will create a Python module file (e.g., pyhesai_wrapper_cpp.cpython-310-x86_64-linux-gnu.so) and install it into your Python environment.
+1. If the build is successful, the stretch4_pyhesai_wrapper module is now installed and available to all Python scripts in your environment.

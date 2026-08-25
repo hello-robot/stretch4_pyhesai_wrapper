@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Interactive bench test for pyhesai_wrapper.ptc_client.
+Interactive bench test for stretch4_pyhesai_wrapper.ptc_client.
 
 Uses only the public wrapper API (not raw pybind). Same GET → SET → GET pattern
 as HesaiLidar_SDK_2.0/tool_ptc/ptc_cli for the settings the wrapper exposes.
@@ -16,7 +16,7 @@ from __future__ import annotations
 import argparse
 import sys
 
-from pyhesai_wrapper.ptc_client import (
+from stretch4_pyhesai_wrapper.ptc_client import (
     FILTER_NAMES,
     HesaiPtcError,
     LEFT_LIDAR_IP,
@@ -312,7 +312,7 @@ def test_set_point_cloud_mode(ip: str, timeout: float) -> None:
 
 def _print_menu(ip: str) -> None:
     print(
-        '\n--- pyhesai_wrapper PTC test ({}) ---\n'
+        '\n--- stretch4_pyhesai_wrapper PTC test ({}) ---\n'
         '  GET\n'
         '    1  read_all\n'
         '    2  get_return_mode\n'
@@ -337,7 +337,7 @@ def _print_menu(ip: str) -> None:
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(
-        description='Bench test pyhesai_wrapper.ptc_client against a JT128 lidar',
+        description='Bench test stretch4_pyhesai_wrapper.ptc_client against a JT128 lidar',
     )
     group = parser.add_mutually_exclusive_group()
     group.add_argument('--left', action='store_true')
@@ -364,7 +364,7 @@ def main(argv: list[str] | None = None) -> int:
         )
         return 1
 
-    print('Testing pyhesai_wrapper.ptc_client at {}:{}'.format(ip, 9347))
+    print('Testing stretch4_pyhesai_wrapper.ptc_client at {}:{}'.format(ip, 9347))
     if not ptc_reachable(ip, timeout=args.timeout):
         print('PTC not reachable at {}:9347'.format(ip), file=sys.stderr)
         return 1
