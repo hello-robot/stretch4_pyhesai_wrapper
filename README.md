@@ -16,7 +16,8 @@ from stretch4_pyhesai_wrapper import stream_lidar_both
 
 for pair in stream_lidar_both():
    if pair is None:
-      robot.omnibase.hard_stop(); robot.push_command()
+      robot.base.hard_stop()
+      robot.push_command()
       continue  # degraded or dropped out - stop the robot here, don't reuse the last pair
    left, right = pair
    print(f"Points shape: {left.points.shape}, timestamp: {left.timestamp}")
