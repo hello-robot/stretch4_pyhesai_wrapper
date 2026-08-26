@@ -9,16 +9,14 @@ python3 -m pip install -U hello-robot-stretch4-pyhesai-wrapper
 
 ## Details
 
-A generator pattern to stream both left and right LiDARs. Internally, a synchronizer ensures left and right frames are within 60ms of each other. Frame pairs are not guaranteed to return at 10hz. There can be degraded rate or even drop out for multiple seconds at a time, so please implement a watchdog for safety applications.
+A generator pattern to stream both left and right LiDARs. Internally, a synchronizer ensures left and right frames are within 60ms of each other. Frame pairs are not guaranteed to return at 10hz. There can be degraded rate or even drop out for multiple seconds at a time, so **please implement a watchdog for safety applications**.
 ```python
 
 from stretch4_pyhesai_wrapper import stream_lidar_both
 
 for left, right in stream_lidar_both():
-   if left is not None:
-      print(f"Points shape: {left.points.shape}, timestamp: {left.timestamp}")
-   if right is not None:
-      print(f"Points shape: {right.points.shape}, timestamp: {right.timestamp}")
+   print(f"Points shape: {left.points.shape}, timestamp: {left.timestamp}")
+   print(f"Points shape: {right.points.shape}, timestamp: {right.timestamp}")
 ```
 
 Left Lidar:
@@ -30,6 +28,8 @@ for frame in stream_lidar_left():
    if frame is not None:
       print(f"Points shape: {frame.points.shape}, timestamp: {frame.timestamp}")
 ```
+
+> Note: `stream_lidar_left()` and `stream_lidar_right()` are non-blocking and yield `None` whenever no new frame is available yet, so the `None` check is required. Use `stream_lidar_left_blocking()` / `stream_lidar_right_blocking()` to block until a frame arrives and never receive `None`. `stream_lidar_both()` always blocks until a synchronized pair is available, so it never yields `None`.
 
 Right Lidar:
 
@@ -44,9 +44,8 @@ for frame in stream_lidar_right():
 Alternatively, you can poll the next frame using `next()`:
 
 ```python
-left, right  = stream_lidar_both()
-left_frame = next(left)
-right_frame = next(right)
+pairs = stream_lidar_both()
+left_frame, right_frame = next(pairs)
 ```
 
 ### The `LidarPointCloudFrame` Dataclass
@@ -56,6 +55,7 @@ When you fetch points using `lidar.get_next()` or via the streaming generators, 
 * `timestamp`: A NumPy 1D array of shape `(N,)` containing the microsecond tick timestamps for each point (`dtype=float64`).
 * `confidence`: A NumPy 1D array of shape `(N,)` containing the confidence values (`dtype=uint8`).
 * `ring`: A NumPy 1D array of shape `(N,)` containing the laser ring IDs (`dtype=uint16`).
+* `frame_start_timestamp`: in seconds, This is the timestamp of the first packet the SDK sees (which clock depends on `use_timestamp_type`)
 
 ### Tools:
 
