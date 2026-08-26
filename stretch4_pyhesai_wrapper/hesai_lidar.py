@@ -53,7 +53,8 @@ class LidarPointCloudFrame:
 
 class HesaiLidar():
 
-    def __init__(self, use_right_lidar=False, queue_size=2):
+    def __init__(self, use_right_lidar=False, queue_size=2, quiet=True):
+        self.quiet = quiet
 
         logging.basicConfig(level=logging.INFO)
 
@@ -77,12 +78,14 @@ class HesaiLidar():
         self.on_msg_cbs.append((callback, args))
 
     def connect(self):
-        # Instatiate PyRSDriver
-        self.lidar_driver = HesaiLidarSdk_XYZICRT()
+        # Instatiate PyRSDriver. quiet= suppresses the SDK's version banner,
+        # which the constructor prints straight to std::cout.
+        self.lidar_driver = HesaiLidarSdk_XYZICRT(quiet=self.quiet)
 
         param = DriverParam()
 
         # --- Parameters from test.cc ---
+        param.log_Target = 0x00 if self.quiet else 0x01 # HESAI_LOG_TARGET_NONE / HESAI_LOG_TARGET_CONSOLE from libhesai's logger.h
         param.use_gpu = False
         param.input_param.source_type = SourceType.DATA_FROM_LIDAR
         param.input_param.device_ip_address = self.ip
@@ -112,7 +115,7 @@ class HesaiLidar():
                 except Exception:
                     logging.exception("on_msg callback %r failed", cb)
 
-        logging.info(f"Initializing SDK for Lidar at {param.input_param.device_ip_address}...")
+        logging.debug(f"Initializing SDK for Lidar at {param.input_param.device_ip_address}...")
         if not self.lidar_driver.Init(param):
             logging.error("SDK Init failed. Check connection and correction file path.")
             raise RuntimeError("SDK Init failed. Check connection and correction file path.")

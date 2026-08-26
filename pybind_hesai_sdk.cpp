@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <memory>
+#include <sstream>
 #include <thread>
 
 // Include Hesai SDK headers
@@ -241,7 +242,18 @@ PYBIND11_MODULE(pyhesai_wrapper_cpp, m) {
     // --- Wrap the main HesaiLidarSdk class ---
 
     py::class_<HesaiLidarSdk_XYZICRT>(m, "HesaiLidarSdk_XYZICRT")
-        .def(py::init<>())
+        // The SDK constructor unconditionally prints a version banner to
+        // std::cout (hesai_lidar_sdk.hpp). It does not go through libhesai's
+        // Logger, so DriverParam::log_Target cannot suppress it; divert
+        // std::cout for the duration of the construction instead. Construction
+        // only ever happens on the calling thread while it holds the GIL.
+        .def(py::init([](bool quiet) {
+                std::ostringstream sink;
+                std::streambuf* saved = quiet ? std::cout.rdbuf(sink.rdbuf()) : nullptr;
+                auto sdk = std::unique_ptr<HesaiLidarSdk_XYZICRT>(new HesaiLidarSdk_XYZICRT());
+                if (quiet) std::cout.rdbuf(saved);
+                return sdk;
+            }), py::arg("quiet") = false)
         .def("Init", &HesaiLidarSdk_XYZICRT::Init, "Initialize the Lidar SDK")
         .def("Start", &HesaiLidarSdk_XYZICRT::Start, "Start the SDK processing threads")
         .def("Stop", &HesaiLidarSdk_XYZICRT::Stop, py::call_guard<py::gil_scoped_release>(), "Stop the SDK and clean up")
