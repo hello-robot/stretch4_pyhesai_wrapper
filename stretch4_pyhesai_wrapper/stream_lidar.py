@@ -56,9 +56,9 @@ def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame, LidarPointCloud
             of = min(frames, key=delta, default=None)
             if of is None or delta(of) >= slop:
                 return
-            if msg.timestamp[0] <= last[name] or of.timestamp[0] <= last[other]:
+            if msg.timestamp[0] <= last_pair[name] or of.timestamp[0] <= last_pair[other]:
                 return
-            last[name], last[other] = msg.timestamp[0], of.timestamp[0]
+            last_pair[name], last_pair[other] = msg.timestamp[0], of.timestamp[0]
             left_frame = msg if name == 'left' else of
             right_frame = of if name == 'left' else msg
             if pair_queue.full():
