@@ -2,7 +2,7 @@ import argparse
 import time
 import numpy as np
 
-from stretch4_pyhesai_wrapper import HesaiLidar, stream_lidar_left, stream_lidar_right, stream_lidar_left_right, LidarPointCloudFrame
+from stretch4_pyhesai_wrapper import HesaiLidar, stream_lidar_left, stream_lidar_right, stream_lidar_both, LidarPointCloudFrame
 
 
 from stretch4_urdf import get_urdf_from_robot_params, get_transform
@@ -117,7 +117,7 @@ def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun: bool = True, 
     try:
 
         if use_left and use_right:
-            stream = stream_lidar_left_right()
+            stream = stream_lidar_both()
             for left, right in stream:
                 _handle_frame(left)
                 _handle_frame(right)

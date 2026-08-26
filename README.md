@@ -12,9 +12,9 @@ python3 -m pip install -U hello-robot-stretch4-pyhesai-wrapper
 Both Left and Right Lidars:
 ```python
 
-from stretch4_pyhesai_wrapper import stream_lidar_left_right
+from stretch4_pyhesai_wrapper import stream_lidar_both
 
-for left, right in stream_lidar_left_right():
+for left, right in stream_lidar_both():
    if left is not None:
       print(f"Points shape: {left.points.shape}, timestamp: {left.timestamp}")
    if right is not None:
@@ -44,7 +44,7 @@ for frame in stream_lidar_right():
 Alternatively, you can poll the next frame using `next()`:
 
 ```python
-left, right  = stream_lidar_left_right()
+left, right  = stream_lidar_both()
 left_frame = next(left)
 right_frame = next(right)
 ```
