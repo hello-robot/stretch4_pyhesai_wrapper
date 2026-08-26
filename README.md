@@ -9,7 +9,7 @@ python3 -m pip install -U hello-robot-stretch4-pyhesai-wrapper
 
 ## Details
 
-Both Left and Right Lidars:
+A generator pattern to stream both left and right LiDARs. Internally, a synchronizer ensures left and right frames are within 60ms of each other. Frame pairs are not guaranteed to return at 10hz. There can be degraded rate or even drop out for multiple seconds at a time, so please implement a watchdog for safety applications.
 ```python
 
 from stretch4_pyhesai_wrapper import stream_lidar_both

@@ -48,31 +48,36 @@ def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame, LidarPointCloud
     slop = 0.06
     def recv(msg, name):
         with recv_lock:
+            # never reuse a frame already emitted, and never emit out of order
+            if msg.frame_start_timestamp <= last_pair[name]:
+                return
             other = 'right' if name == 'left' else 'left'
             other_queue = right.frame_queue if name == 'left' else left.frame_queue
             with other_queue.mutex:
                 frames = list(other_queue.queue)
+            frames = [f for f in frames if f.frame_start_timestamp > last_pair[other]]
             delta = lambda f: abs(f.frame_start_timestamp - msg.frame_start_timestamp)
             of = min(frames, key=delta, default=None)
             if of is None or delta(of) >= slop:
-                return
-            # never reuse a frame already emitted, and never emit out of order
-            if (msg.frame_start_timestamp <= last_pair[name]
-                    or of.frame_start_timestamp <= last_pair[other]):
                 return
             last_pair[name] = msg.frame_start_timestamp
             last_pair[other] = of.frame_start_timestamp
             left_frame = msg if name == 'left' else of
             right_frame = of if name == 'left' else msg
-            if pair_queue.full():
-                pair_queue.get_nowait()
-            pair_queue.put_nowait((left_frame, right_frame))
+            try:
+                pair_queue.put_nowait((left_frame, right_frame))
+            except queue.Full:
+                try:
+                    pair_queue.get_nowait()
+                except queue.Empty:
+                    pass
+                pair_queue.put_nowait((left_frame, right_frame))
 
     right.registerCallback(recv, right.side)
     left.registerCallback(recv, left.side)
-    right.start()
-    left.start()
     try:
+        right.start()
+        left.start()
         while True:
             try:
                 # timeout to be reponsive to keyboard interrupts

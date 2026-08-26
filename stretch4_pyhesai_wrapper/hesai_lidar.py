@@ -95,12 +95,15 @@ class HesaiLidar():
             pc_array = np.array(frame.points)
             lidar_frame = LidarPointCloudFrame.from_named_numpy_array(pc_array, self.side, frame.frame_start_timestamp)
             try:
-                # If the queue is full, remove the oldest frame to make space
-                if self.frame_queue.full():
-                    self.frame_queue.get_nowait()
                 self.frame_queue.put_nowait(lidar_frame)
-            except (queue.Empty, queue.Full):
-                pass
+            except queue.Full:
+                # Queue is full: drop the oldest frame to make space. This
+                # thread is the only producer, so the retried put cannot fail.
+                try:
+                    self.frame_queue.get_nowait()
+                except queue.Empty:
+                    pass
+                self.frame_queue.put_nowait(lidar_frame)
 
             # a failing callback must not kill the SDK's C++ callback thread
             for (cb, args) in self.on_msg_cbs:
