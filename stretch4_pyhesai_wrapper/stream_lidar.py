@@ -52,13 +52,16 @@ def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame, LidarPointCloud
             other_queue = right.frame_queue if name == 'left' else left.frame_queue
             with other_queue.mutex:
                 frames = list(other_queue.queue)
-            delta = lambda f: abs(f.timestamp[0] - msg.timestamp[0])
+            delta = lambda f: abs(f.frame_start_timestamp - msg.frame_start_timestamp)
             of = min(frames, key=delta, default=None)
             if of is None or delta(of) >= slop:
                 return
-            if msg.timestamp[0] <= last_pair[name] or of.timestamp[0] <= last_pair[other]:
+            # never reuse a frame already emitted, and never emit out of order
+            if (msg.frame_start_timestamp <= last_pair[name]
+                    or of.frame_start_timestamp <= last_pair[other]):
                 return
-            last_pair[name], last_pair[other] = msg.timestamp[0], of.timestamp[0]
+            last_pair[name] = msg.frame_start_timestamp
+            last_pair[other] = of.frame_start_timestamp
             left_frame = msg if name == 'left' else of
             right_frame = of if name == 'left' else msg
             if pair_queue.full():

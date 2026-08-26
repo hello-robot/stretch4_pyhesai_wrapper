@@ -24,9 +24,13 @@ class LidarPointCloudFrame:
     confidence: np.ndarray
     ring: np.ndarray
     name: str|None = None
+    # Start of sweep, seconds, on whichever clock use_timestamp_type selects.
+    # Same quantity the ROS driver puts in header.stamp
+    frame_start_timestamp: float = 0.0
 
     @staticmethod
-    def from_named_numpy_array(pc_array: np.ndarray, lidar_name:str|None=None) -> 'LidarPointCloudFrame':
+    def from_named_numpy_array(pc_array: np.ndarray, lidar_name:str|None=None,
+                               frame_start_timestamp: float = 0.0) -> 'LidarPointCloudFrame':
         """
         The logic for unpacking the lidar point cloud assumes the point cloud is from a Hesai lidar.
         """
@@ -42,7 +46,8 @@ class LidarPointCloudFrame:
             timestamp_system=time.time(),
             confidence=pc_array['confidence'],
             ring=pc_array['ring'],
-            name=lidar_name
+            name=lidar_name,
+            frame_start_timestamp=frame_start_timestamp
         )
 
 
@@ -88,7 +93,7 @@ class HesaiLidar():
         
         def pointcloud_callback(frame):
             pc_array = np.array(frame.points)
-            lidar_frame = LidarPointCloudFrame.from_named_numpy_array(pc_array, self.side)
+            lidar_frame = LidarPointCloudFrame.from_named_numpy_array(pc_array, self.side, frame.frame_start_timestamp)
             try:
                 # If the queue is full, remove the oldest frame to make space
                 if self.frame_queue.full():
