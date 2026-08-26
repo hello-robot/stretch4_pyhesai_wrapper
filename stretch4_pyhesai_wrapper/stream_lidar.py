@@ -38,7 +38,7 @@ def stream_lidar_right_blocking() -> Generator[LidarPointCloudFrame, None, None]
     finally:
         lidar.stop()
 
-def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame | None,LidarPointCloudFrame | None], None, None]:
+def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame, LidarPointCloudFrame], None, None]:
     right = HesaiLidar(use_right_lidar=True, queue_size=3)
     left = HesaiLidar(use_right_lidar=False, queue_size=3)
 

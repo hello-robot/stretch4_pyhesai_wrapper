@@ -94,15 +94,15 @@ class HesaiLidar():
                 if self.frame_queue.full():
                     self.frame_queue.get_nowait()
                 self.frame_queue.put_nowait(lidar_frame)
+            except (queue.Empty, queue.Full):
+                pass
 
-                # call on_msg callbacks
-                if self.on_msg_cbs:
-                    for (cb, args) in self.on_msg_cbs:
-                        cb(lidar_frame, *args)
-            except queue.Empty:
-                pass
-            except queue.Full:
-                pass
+            # a failing callback must not kill the SDK's C++ callback thread
+            for (cb, args) in self.on_msg_cbs:
+                try:
+                    cb(lidar_frame, *args)
+                except Exception:
+                    logging.exception("on_msg callback %r failed", cb)
 
         logging.info(f"Initializing SDK for Lidar at {param.input_param.device_ip_address}...")
         if not self.lidar_driver.Init(param):
