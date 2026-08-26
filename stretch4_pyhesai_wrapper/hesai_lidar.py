@@ -108,7 +108,7 @@ class HesaiLidar():
             full, n = self._full_points, frame.points_num
             self._full_points = max(full, n)
             if full == 0:
-                logging.info("%s lidar: dropped the partial sweep in progress at startup "
+                logging.debug("%s lidar: dropped the partial sweep in progress at startup "
                               "(%d points)", self.side, n)
                 return
             if n < self.FULL_SWEEP_RATIO * full:
