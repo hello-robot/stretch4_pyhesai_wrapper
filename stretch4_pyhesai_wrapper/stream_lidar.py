@@ -52,6 +52,8 @@ def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame | None,LidarPoin
                 if abs(of.timestamp[0] - msg.timestamp[0]) < slop:
                     left_frame = msg if name == 'left' else of
                     right_frame = of if name == 'left' else msg
+                    if pair_queue.full():
+                        pair_queue.get_nowait()
                     pair_queue.put_nowait((left_frame, right_frame))
                     break
 

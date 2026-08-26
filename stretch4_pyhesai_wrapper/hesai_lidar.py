@@ -98,7 +98,7 @@ class HesaiLidar():
                 # call on_msg callbacks
                 if self.on_msg_cbs:
                     for (cb, args) in self.on_msg_cbs:
-                        cb(*(lidar_frame + args))
+                        cb(lidar_frame, *args)
             except queue.Empty:
                 pass
             except queue.Full:
