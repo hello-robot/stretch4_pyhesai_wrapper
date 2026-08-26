@@ -1,7 +1,12 @@
 import queue
 import threading
+import time
 from typing import Generator
 from stretch4_pyhesai_wrapper.hesai_lidar import LidarPointCloudFrame, HesaiLidar
+
+
+PAIR_TIMEOUT_S = 0.5 # How long stream_lidar_both() waits before yielding None
+_POLL_S = 0.1
 
 
 def stream_lidar_left() -> Generator[LidarPointCloudFrame | None, None, None]:
@@ -38,7 +43,7 @@ def stream_lidar_right_blocking() -> Generator[LidarPointCloudFrame, None, None]
     finally:
         lidar.stop()
 
-def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame, LidarPointCloudFrame], None, None]:
+def stream_lidar_both(timeout: float | None = PAIR_TIMEOUT_S) -> Generator[tuple[LidarPointCloudFrame, LidarPointCloudFrame] | None, None, None]:
     right = HesaiLidar(use_right_lidar=True, queue_size=3)
     left = HesaiLidar(use_right_lidar=False, queue_size=3)
 
@@ -78,12 +83,20 @@ def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame, LidarPointCloud
     try:
         right.start()
         left.start()
+        wait = _POLL_S if timeout is None else min(_POLL_S, timeout)
+        deadline = None if timeout is None else time.monotonic() + timeout
         while True:
             try:
-                # timeout to be reponsive to keyboard interrupts
-                yield pair_queue.get(timeout=0.5)
+                pair = pair_queue.get(timeout=wait)
             except queue.Empty:
+                if deadline is None or time.monotonic() < deadline:
+                    continue
+                deadline = time.monotonic() + timeout
+                yield None
                 continue
+            if deadline is not None:
+                deadline = time.monotonic() + timeout
+            yield pair
     finally:
         right.stop()
         left.stop()

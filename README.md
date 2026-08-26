@@ -9,12 +9,16 @@ python3 -m pip install -U hello-robot-stretch4-pyhesai-wrapper
 
 ## Details
 
-A generator pattern to stream both left and right LiDARs. Internally, a synchronizer ensures left and right frames are within 60ms of each other. Frame pairs are not guaranteed to return at 10hz. There can be degraded rate or even drop out for multiple seconds at a time, so **please implement a watchdog for safety applications**.
+A generator pattern to stream both left and right LiDARs. Internally, a synchronizer ensures left and right frames are within 60ms of each other. Frame pairs are not guaranteed to return at 10hz. There can be degraded rate or even drop out for multiple seconds at a time, so **please implement a watchdog for safety applications**. You can 1) run a watchdog thread, or 2) the generator yields `None` if no pair has arrived for `timeout` seconds (0.5s by default), and keeps yielding `None` every `timeout` until the lidars recover.
 ```python
 
 from stretch4_pyhesai_wrapper import stream_lidar_both
 
-for left, right in stream_lidar_both():
+for pair in stream_lidar_both():
+   if pair is None:
+      robot.omnibase.hard_stop(); robot.push_command()
+      continue  # degraded or dropped out - stop the robot here, don't reuse the last pair
+   left, right = pair
    print(f"Points shape: {left.points.shape}, timestamp: {left.timestamp}")
    print(f"Points shape: {right.points.shape}, timestamp: {right.timestamp}")
 ```
@@ -29,7 +33,7 @@ for frame in stream_lidar_left():
       print(f"Points shape: {frame.points.shape}, timestamp: {frame.timestamp}")
 ```
 
-> Note: `stream_lidar_left()` and `stream_lidar_right()` are non-blocking and yield `None` whenever no new frame is available yet, so the `None` check is required. Use `stream_lidar_left_blocking()` / `stream_lidar_right_blocking()` to block until a frame arrives and never receive `None`. `stream_lidar_both()` always blocks until a synchronized pair is available, so it never yields `None`.
+> Note: all three generators can yield `None`, but for different reasons. `stream_lidar_left()` and `stream_lidar_right()` are non-blocking and yield `None` whenever no new frame is available *yet*, which is the normal case between sweeps — use `stream_lidar_left_blocking()` / `stream_lidar_right_blocking()` to block until a frame arrives and never receive `None`. `stream_lidar_both()` blocks until a synchronized pair is available and yields `None` only under **degradation or dropout** — no pair for `timeout` seconds (0.5s by default). That `None` is not routine: it means the pair stream has stalled, so handle it as a fault rather than skipping past it. Pass `stream_lidar_both(timeout=None)` to block indefinitely and never receive `None`.
 
 Right Lidar:
 
@@ -45,7 +49,9 @@ Alternatively, you can poll the next frame using `next()`:
 
 ```python
 pairs = stream_lidar_both()
-left_frame, right_frame = next(pairs)
+pair = next(pairs)          # None if the stream is degraded or dropped out
+if pair is not None:
+   left_frame, right_frame = pair
 ```
 
 ### The `LidarPointCloudFrame` Dataclass

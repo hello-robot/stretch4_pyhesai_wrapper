@@ -52,6 +52,7 @@ class LidarPointCloudFrame:
 
 
 class HesaiLidar():
+    FULL_SWEEP_RATIO = 0.99
 
     def __init__(self, use_right_lidar=False, queue_size=2, quiet=True):
         self.quiet = quiet
@@ -70,6 +71,9 @@ class HesaiLidar():
 
         self.connected = False
         self.started = False
+
+        self._full_points = 0
+        self.partial_frames_dropped = 0
 
     def registerCallback(self, callback, *args):
         """Expects a callback that can be called
@@ -94,7 +98,25 @@ class HesaiLidar():
         param.input_param.ptc_port = self.ptc_port
         param.input_param.correction_file_path = self.correction_file_path
         
+        self._full_points = 0
+
         def pointcloud_callback(frame):
+            # Partial sweeps, e.g. like the first one after Start()
+            # are reported as a N<115200 frame whose frame_start_timestamp
+            # is the first packet's time rather than the azimuth-0 boundary.
+            # Drop these partial sweeps.
+            full, n = self._full_points, frame.points_num
+            self._full_points = max(full, n)
+            if full == 0:
+                logging.info("%s lidar: dropped the partial sweep in progress at startup "
+                              "(%d points)", self.side, n)
+                return
+            if n < self.FULL_SWEEP_RATIO * full:
+                self.partial_frames_dropped += 1
+                logging.warning("%s lidar: dropped a partial sweep (%d of %d points) - "
+                                "packets lost or delayed", self.side, n, full)
+                return
+
             pc_array = np.array(frame.points)
             lidar_frame = LidarPointCloudFrame.from_named_numpy_array(pc_array, self.side, frame.frame_start_timestamp)
             try:
