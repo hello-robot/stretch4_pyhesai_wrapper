@@ -7,6 +7,7 @@
 
 #include <chrono>
 #include <memory>
+#include <sstream>
 #include <thread>
 
 // Include Hesai SDK headers
@@ -186,7 +187,14 @@ PYBIND11_MODULE(pyhesai_wrapper_cpp, m) {
         .def_readonly("frame_index", &LidarDecodedFrame_XYZICRT::frame_index)
         .def_readonly("points_num", &LidarDecodedFrame_XYZICRT::points_num)
         .def_readonly("packet_num", &LidarDecodedFrame_XYZICRT::packet_num)
-        
+
+        // Sweep timestamps, in seconds on the lidar's own clock (use_timestamp_type=0)
+        // or the SDK receive clock (use_timestamp_type=1). frame_start_timestamp is
+        // the value the ROS driver puts in header.stamp, and it matches the single
+        // revolution exposed by 'points' below.
+        .def_readonly("frame_start_timestamp", &LidarDecodedFrame_XYZICRT::frame_start_timestamp)
+        .def_readonly("frame_end_timestamp", &LidarDecodedFrame_XYZICRT::frame_end_timestamp)
+
         // Expose 'points' as a zero-copy NumPy array
         .def_property_readonly("points", [](LidarDecodedFrame_XYZICRT &frame) {
             return py::array_t<LidarPointT>(
@@ -234,7 +242,18 @@ PYBIND11_MODULE(pyhesai_wrapper_cpp, m) {
     // --- Wrap the main HesaiLidarSdk class ---
 
     py::class_<HesaiLidarSdk_XYZICRT>(m, "HesaiLidarSdk_XYZICRT")
-        .def(py::init<>())
+        // The SDK constructor unconditionally prints a version banner to
+        // std::cout (hesai_lidar_sdk.hpp). It does not go through libhesai's
+        // Logger, so DriverParam::log_Target cannot suppress it; divert
+        // std::cout for the duration of the construction instead. Construction
+        // only ever happens on the calling thread while it holds the GIL.
+        .def(py::init([](bool quiet) {
+                std::ostringstream sink;
+                std::streambuf* saved = quiet ? std::cout.rdbuf(sink.rdbuf()) : nullptr;
+                auto sdk = std::unique_ptr<HesaiLidarSdk_XYZICRT>(new HesaiLidarSdk_XYZICRT());
+                if (quiet) std::cout.rdbuf(saved);
+                return sdk;
+            }), py::arg("quiet") = false)
         .def("Init", &HesaiLidarSdk_XYZICRT::Init, "Initialize the Lidar SDK")
         .def("Start", &HesaiLidarSdk_XYZICRT::Start, "Start the SDK processing threads")
         .def("Stop", &HesaiLidarSdk_XYZICRT::Stop, py::call_guard<py::gil_scoped_release>(), "Stop the SDK and clean up")
