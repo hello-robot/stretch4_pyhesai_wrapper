@@ -48,7 +48,9 @@ def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame | None,LidarPoin
     def recv(msg, name):
         with recv_lock:
             other_queue = right.frame_queue if name == 'left' else left.frame_queue
-            for of in other_queue:
+            with other_queue.mutex:
+                frames = list(other_queue.queue)
+            for of in frames:
                 if abs(of.timestamp[0] - msg.timestamp[0]) < slop:
                     left_frame = msg if name == 'left' else of
                     right_frame = of if name == 'left' else msg
