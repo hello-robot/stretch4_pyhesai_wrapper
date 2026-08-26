@@ -42,11 +42,13 @@ def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame | None,LidarPoin
     right = HesaiLidar(use_right_lidar=True, queue_size=3)
     left = HesaiLidar(use_right_lidar=False, queue_size=3)
 
+    last_pair = {'left': float('-inf'), 'right': float('-inf')}
     pair_queue = queue.Queue(maxsize=3)
     recv_lock = threading.Lock()
     slop = 0.06
     def recv(msg, name):
         with recv_lock:
+            other = 'right' if name == 'left' else 'left'
             other_queue = right.frame_queue if name == 'left' else left.frame_queue
             with other_queue.mutex:
                 frames = list(other_queue.queue)
@@ -54,6 +56,9 @@ def stream_lidar_both() -> Generator[tuple[LidarPointCloudFrame | None,LidarPoin
             of = min(frames, key=delta, default=None)
             if of is None or delta(of) >= slop:
                 return
+            if msg.timestamp[0] <= last[name] or of.timestamp[0] <= last[other]:
+                return
+            last[name], last[other] = msg.timestamp[0], of.timestamp[0]
             left_frame = msg if name == 'left' else of
             right_frame = of if name == 'left' else msg
             if pair_queue.full():
