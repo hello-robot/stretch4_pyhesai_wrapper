@@ -118,7 +118,11 @@ def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun: bool = True, 
 
         if use_left and use_right:
             stream = stream_lidar_both()
-            for left, right in stream:
+            for frames in stream:
+                if frames is None:
+                    print("Waiting for frames...")
+                    continue
+                left, right = frames
                 _handle_frame(left)
                 _handle_frame(right)
                 

@@ -51,7 +51,8 @@ def stream_lidar_both(timeout: float | None = PAIR_TIMEOUT_S) -> Generator[tuple
     pair_queue = queue.Queue(maxsize=3)
     recv_lock = threading.Lock()
     slop = 0.06
-    def recv(msg, name):
+    def recv(msg:LidarPointCloudFrame):
+        name = msg.name # the lidar tags every frame with its own side
         with recv_lock:
             # never reuse a frame already emitted, and never emit out of order
             if msg.frame_start_timestamp <= last_pair[name]:
@@ -64,6 +65,7 @@ def stream_lidar_both(timeout: float | None = PAIR_TIMEOUT_S) -> Generator[tuple
             delta = lambda f: abs(f.frame_start_timestamp - msg.frame_start_timestamp)
             of = min(frames, key=delta, default=None)
             if of is None or delta(of) >= slop:
+                print("Not synced!")
                 return
             last_pair[name] = msg.frame_start_timestamp
             last_pair[other] = of.frame_start_timestamp
@@ -78,8 +80,8 @@ def stream_lidar_both(timeout: float | None = PAIR_TIMEOUT_S) -> Generator[tuple
                     pass
                 pair_queue.put_nowait((left_frame, right_frame))
 
-    right.registerCallback(recv, right.side)
-    left.registerCallback(recv, left.side)
+    right.register_callback(recv)
+    left.register_callback(recv)
     try:
         right.start()
         left.start()

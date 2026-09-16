@@ -1,4 +1,5 @@
 import time
+from typing import Callable
 
 from .pyhesai_wrapper_cpp import * # Import everything from the C++ wrapper
 
@@ -75,7 +76,7 @@ class HesaiLidar():
         self._full_points = 0
         self.partial_frames_dropped = 0
 
-    def registerCallback(self, callback, *args):
+    def register_callback(self, callback:Callable[[LidarPointCloudFrame],None], *args):
         """Expects a callback that can be called
         method(frame: LidarPointCloudFrame, *args)
         """
