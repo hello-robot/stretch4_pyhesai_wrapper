@@ -24,6 +24,8 @@ for pair in stream_lidar_both():
    print(f"Points shape: {right.points.shape}, timestamp: {right.timestamp}")
 ```
 
+`stream_lidar_left_right()` is an alias for `stream_lidar_both()`.
+
 Left Lidar:
 
 ```python

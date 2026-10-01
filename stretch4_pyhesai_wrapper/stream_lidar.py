@@ -100,3 +100,5 @@ def stream_lidar_both(timeout: float | None = PAIR_TIMEOUT_S) -> Generator[tuple
     finally:
         right.stop()
         left.stop()
+
+stream_lidar_left_right = stream_lidar_both # Alias
