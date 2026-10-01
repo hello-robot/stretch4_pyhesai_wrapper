@@ -7,7 +7,9 @@ clocks synchronized to the robot's system clock.
 
 --install installs linuxptp (ptp4l, phc2sys, pmc) if missing, then installs
 and enables the lidar-ptp4l and lidar-phc2sys systemd services on the
-lidar-facing NIC and verifies the robot is running as PTP grandmaster.
+lidar-facing NIC and verifies the robot is running as PTP grandmaster. It then
+checks each lidar's return mode, noise filter, and PTP lock offset against the
+values stretch_system_check expects, and offers to apply any that differ.
 
 Ported from stretch_production_tools_ii fab_tests/test_FAB_ptp_grandmaster.py.
 """
@@ -298,7 +300,7 @@ def _service_state(name: str) -> str:
     return res.stdout.strip()
 
 
-def install() -> bool:
+def install_grandmaster() -> bool:
     interface = discover_nuc_ptp_interface()
     if interface is None:
         print(f"ERROR: Could not find a network interface with {NUC_LIDAR_SUBNET_IP} assigned. "
@@ -354,40 +356,126 @@ def install() -> bool:
     return True
 
 
-def status() -> bool:
-    from stretch4_pyhesai_wrapper.ptc_client import (
-        LEFT_LIDAR_IP, RIGHT_LIDAR_IP, ACCEPTABLE_PTP_STATUSES, get_lidar_ptp_status, HesaiPtcError,
+def _lidars() -> tuple[tuple[str, str], ...]:
+    from stretch4_pyhesai_wrapper.ptc_client import LEFT_LIDAR_IP, RIGHT_LIDAR_IP
+    return (('left', LEFT_LIDAR_IP), ('right', RIGHT_LIDAR_IP))
+
+
+def _lidar_settings():
+    """(label, getter, setter, expected, format) for each lidar setting stretch_system_check expects."""
+    from stretch4_pyhesai_wrapper import ptc_client as ptc
+    return (
+        ('Return mode', ptc.get_return_mode, ptc.set_return_mode, ptc.RETURN_MODE_LAST_AND_STRONGEST,
+         lambda v: f"{v} ({ptc.RETURN_MODE_NAMES.get(v, 'unknown')})"),
+        ('Noise filter', lambda ip: ptc.get_point_cloud_config(ip)[1], ptc.set_filter_type, ptc.FILTER_STRONG,
+         lambda v: f"{v} ({ptc.FILTER_NAMES.get(v, 'unknown')})"),
+        ('PTP lock offset', ptc.get_ptp_lock_offset_us, ptc.set_ptp_lock_offset_us, ptc.PTP_LOCK_OFFSET_US,
+         lambda v: f"{v} us"),
     )
+
+
+def check_lidar_config(side: str, ip: str) -> list | None:
+    """Print each setting of one lidar. Returns the mismatched settings, or None if the lidar can't be queried."""
+    from stretch4_pyhesai_wrapper.ptc_client import HesaiPtcError
+    mismatched = []
+    for label, getter, setter, expected, fmt in _lidar_settings():
+        try:
+            value = getter(ip)
+        except HesaiPtcError as e:
+            print(f"  {label}: unavailable ({e})")
+            return None
+        if value == expected:
+            print(f"  {label}: {fmt(value)}")
+        else:
+            print(f"  {label}: {fmt(value)}  (expected: {fmt(expected)})")
+            mismatched.append((label, setter, expected, fmt))
+    return mismatched
+
+
+def _confirm(question: str, assume_yes: bool = False) -> bool:
+    if assume_yes:
+        print(f"{question} [Y/n] y (--yes)")
+        return True
+    try:
+        return not input(f"{question} [Y/n] ").strip().lower().startswith('n')
+    except EOFError:
+        return False
+
+
+def configure_lidars(assume_yes: bool = False) -> bool:
+    from stretch4_pyhesai_wrapper.ptc_client import HesaiPtcError
+    ok = True
+    for side, ip in _lidars():
+        print(f"{side} lidar ({ip}) configuration:")
+        mismatched = check_lidar_config(side, ip)
+        if mismatched is None:
+            print(f"ERROR: could not query the {side} lidar. Check that it is powered on and connected.")
+            ok = False
+            continue
+        if not mismatched:
+            continue
+        labels = ', '.join(label for label, *_ in mismatched)
+        if not _confirm(f"Change {labels} on the {side} lidar to the expected values?", assume_yes):
+            print(f"Skipped. The {side} lidar is not in the expected configuration.")
+            ok = False
+            continue
+        for label, setter, expected, fmt in mismatched:
+            try:
+                setter(ip, expected)
+                print(f"  {label}: set to {fmt(expected)}")
+            except HesaiPtcError as e:
+                print(f"ERROR: failed to set {label} on the {side} lidar: {e}")
+                ok = False
+    return ok
+
+
+def install(assume_yes: bool = False) -> bool:
+    gm_ok = install_grandmaster()
+    lidars_ok = configure_lidars(assume_yes)
+    return gm_ok and lidars_ok
+
+
+def status() -> bool:
+    from stretch4_pyhesai_wrapper.ptc_client import ACCEPTABLE_PTP_STATUSES, get_lidar_ptp_status, HesaiPtcError
     ok = True
     for name in SERVICE_NAMES:
         state = _service_state(name)
         print(f"{name}: {state}")
         ok &= state == 'active'
-    for side, ip in (('left', LEFT_LIDAR_IP), ('right', RIGHT_LIDAR_IP)):
+    for side, ip in _lidars():
+        print(f"{side} lidar ({ip}):")
         try:
             s = get_lidar_ptp_status(ip)
-            print(f"{side} lidar ({ip}) PTP status: {s['ptp_status_name']}")
+            print(f"  PTP status: {s['ptp_status_name']}")
             ok &= s['ptp_status'] in ACCEPTABLE_PTP_STATUSES
         except HesaiPtcError as e:
-            print(f"{side} lidar ({ip}) PTP status: unavailable ({e})")
+            print(f"  PTP status: unavailable ({e})")
             ok = False
+            continue
+        mismatched = check_lidar_config(side, ip)
+        ok &= mismatched == []
     if not ok:
-        print("PTP is not healthy. Run `REx_ptp_manager --install` to install the PTP grandmaster.")
+        print("PTP or lidar configuration is not healthy. Run `REx_ptp_manager --install` to fix it.")
     return ok
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description="Install and check the PTP grandmaster that synchronizes Stretch's lidar clocks."
+        description="Install and check the PTP grandmaster that synchronizes Stretch's lidar clocks, "
+                    "and the lidar settings it depends on."
     )
     group = parser.add_mutually_exclusive_group(required=True)
     group.add_argument("--install", action="store_true",
-                       help="Install linuxptp and the lidar-ptp4l/lidar-phc2sys services (uses sudo)")
+                       help="Install linuxptp and the lidar-ptp4l/lidar-phc2sys services (uses sudo), "
+                            "then offer to fix lidar settings that differ from the expected values")
     group.add_argument("--status", action="store_true",
-                       help="Show PTP service state and the lidars' PTP status")
+                       help="Show PTP service state, the lidars' PTP status, and their return mode, "
+                            "noise filter, and PTP lock offset")
+    parser.add_argument("-y", "--yes", action="store_true",
+                        help="With --install, apply the expected lidar settings without asking")
     args = parser.parse_args()
 
-    ok = install() if args.install else status()
+    ok = install(assume_yes=args.yes) if args.install else status()
     sys.exit(0 if ok else 1)
 
 
