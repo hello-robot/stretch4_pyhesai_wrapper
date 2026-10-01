@@ -1,3 +1,4 @@
+import logging
 import queue
 import threading
 import time
@@ -43,6 +44,23 @@ def stream_lidar_right_blocking() -> Generator[LidarPointCloudFrame, None, None]
     finally:
         lidar.stop()
 
+def _check_if_ptp_unsynced(lidars: list[HesaiLidar]) -> None:
+    """stream_lidar_both() pairs frames by lidar clock, so it needs both lidars PTP-synced."""
+    from stretch4_pyhesai_wrapper.ptc_client import ACCEPTABLE_PTP_STATUSES, get_lidar_ptp_status
+    unsynced = []
+    for lidar in lidars:
+        try:
+            status = get_lidar_ptp_status(lidar.ip, timeout=1.0, ptc_port=lidar.ptc_port)
+        except Exception as e:
+            logging.debug("%s lidar: could not read PTP status: %s", lidar.side, e)
+            continue
+        if status['ptp_status'] not in ACCEPTABLE_PTP_STATUSES:
+            unsynced.append(f"{lidar.side}={status['ptp_status_name']}")
+    if unsynced:
+        raise RuntimeError("Lidars are not PTP-synchronized (%s), so stream_lidar_both() cannot pair "
+                      "left/right frames and will only yield None. "
+                      "Run `REx_ptp_manager --install` to set up the PTP grandmaster.", ", ".join(unsynced))
+
 def stream_lidar_both(timeout: float | None = PAIR_TIMEOUT_S) -> Generator[tuple[LidarPointCloudFrame, LidarPointCloudFrame] | None, None, None]:
     right = HesaiLidar(use_right_lidar=True, queue_size=3)
     left = HesaiLidar(use_right_lidar=False, queue_size=3)
@@ -77,6 +95,8 @@ def stream_lidar_both(timeout: float | None = PAIR_TIMEOUT_S) -> Generator[tuple
                 except queue.Empty:
                     pass
                 pair_queue.put_nowait((left_frame, right_frame))
+
+    _check_if_ptp_unsynced([left, right])
 
     right.registerCallback(recv, right.side)
     left.registerCallback(recv, left.side)

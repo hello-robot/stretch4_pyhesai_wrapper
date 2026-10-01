@@ -154,6 +154,18 @@ REx_hesai_show_config --right
 
 This retrieves the serial number, model, hardware and software versions, build ID, MAC address, whether new-FW features are supported, return mode, spin rate, lock offset, ultra-precise mode, noise filter type, point-cloud mode (when supported), PTP status, and active PTP master offset (if PTP is synchronized).
 
+#### PTP grandmaster (`REx_ptp_manager`):
+
+`stream_lidar_both()` pairs left/right frames using the lidars' own clocks, so both lidars must be PTP-synchronized to the robot. If they report `free_run`, no pairs are produced and the generator only yields `None`.
+
+```bash
+# Install linuxptp and the lidar-ptp4l / lidar-phc2sys services (uses sudo)
+REx_ptp_manager --install
+
+# Check service state and each lidar's PTP status
+REx_ptp_manager --status
+```
+
 #### Modify configuration (`REx_hesai_set_config`):
 
 > [!WARNING]

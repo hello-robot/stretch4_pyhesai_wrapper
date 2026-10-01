@@ -33,6 +33,7 @@ REx_hesai_download_calibration = "stretch4_pyhesai_wrapper.tools.REx_hesai_downl
 REx_hesai_show_config = "stretch4_pyhesai_wrapper.tools.REx_hesai_show_config:main"
 REx_hesai_set_config = "stretch4_pyhesai_wrapper.tools.REx_hesai_set_config:main"
 REx_hesai_upgrade_firmware = "stretch4_pyhesai_wrapper.tools.REx_hesai_upgrade_firmware:main"
+REx_ptp_manager = "stretch4_pyhesai_wrapper.tools.REx_ptp_manager:main"
 
 
 
