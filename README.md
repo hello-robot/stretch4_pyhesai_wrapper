@@ -24,6 +24,8 @@ for pair in stream_lidar_both():
    print(f"Points shape: {right.points.shape}, timestamp: {right.timestamp}")
 ```
 
+`stream_lidar_left_right()` is an alias for `stream_lidar_both()`.
+
 Left Lidar:
 
 ```python
@@ -151,6 +153,20 @@ REx_hesai_show_config --right
 ```
 
 This retrieves the serial number, model, hardware and software versions, build ID, MAC address, whether new-FW features are supported, return mode, spin rate, lock offset, ultra-precise mode, noise filter type, point-cloud mode (when supported), PTP status, and active PTP master offset (if PTP is synchronized).
+
+#### PTP grandmaster (`REx_ptp_manager`):
+
+`stream_lidar_both()` pairs left/right frames using the lidars' own clocks, so both lidars must be PTP-synchronized to the robot. If they report `free_run`, no pairs are produced and the generator only yields `None`.
+
+```bash
+# Install linuxptp and the lidar-ptp4l / lidar-phc2sys services (uses sudo)
+REx_ptp_manager --install
+
+# Check service state, each lidar's PTP status, and lidar settings
+REx_ptp_manager --status
+```
+
+Both commands also check each lidar's settings against the values `stretch_system_check` expects: return mode `2` (last_and_strongest), noise filter `2` (strong), and PTP lock offset `350` µs. `--status` reports any that differ and exits non-zero; `--install` asks before changing them; pass `-y` / `--yes` to apply them without asking.
 
 #### Modify configuration (`REx_hesai_set_config`):
 

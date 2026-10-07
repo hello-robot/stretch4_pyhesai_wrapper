@@ -118,7 +118,11 @@ def stretch_show_lidar(use_left: bool, use_right: bool, use_rerun: bool = True, 
 
         if use_left and use_right:
             stream = stream_lidar_both()
-            for left, right in stream:
+            for pair in stream:
+                if pair is None:
+                    print("Warning: no synchronized left/right LiDAR pair received; stream may have stalled. Check PTP sync with `REx_ptp_manager --status`, and use `REx_ptp_manager --install` if it is not configured.")
+                    continue
+                left, right = pair
                 _handle_frame(left)
                 _handle_frame(right)
                 
