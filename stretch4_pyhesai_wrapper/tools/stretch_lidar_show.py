@@ -150,6 +150,7 @@ def main():
     parser.add_argument("--print", action="store_false", help="Plot points to rerun")
     parser.add_argument("--no-transform", action="store_true", help="Skip transforming point clouds to the base_footprint frame")
     parser.add_argument("--cluster_high_intensity", action="store_true", help="Cluster high intensity points (>240) and label centroids with their distance")
+    parser.add_argument("--use_ros", action="store_true", help="Show the LiDARs in RViz through ROS 2. Launches the stretch_core LiDAR drivers if the LiDAR topics are not already publishing")
     
     args = parser.parse_args()
     
@@ -159,7 +160,12 @@ def main():
     if not use_left and not use_right:
         use_left = True
         use_right = True
-        
+
+    if args.use_ros:
+        from stretch4_pyhesai_wrapper.tools.stretch_lidar_show_ros import stretch_show_lidar_ros
+        stretch_show_lidar_ros(use_left, use_right)
+        return
+
     stretch_show_lidar(use_left, use_right, use_rerun=args.print, no_transform=args.no_transform, cluster_high_intensity=args.cluster_high_intensity)
 
 if __name__ == "__main__":
