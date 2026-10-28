@@ -6,9 +6,11 @@ Provides module-level get/set helpers used by stretch_lidar_check and FAB tests.
 """
 
 import argparse
+import logging
 import os
 import struct
 import sys
+import time
 import yaml
 
 from stretch4_pyhesai_wrapper import pyhesai_wrapper_cpp as _cpp
@@ -21,6 +23,12 @@ with open(CONFIG_PATH, "r") as f:
 LEFT_LIDAR_IP = CONFIG['left_lidar']['ip']
 RIGHT_LIDAR_IP = CONFIG['right_lidar']['ip']
 PTC_PORT = CONFIG['left_lidar'].get('ptc_port', 9347)
+
+# How long PTC calls keep retrying transport failures before raising. 0 disables retrying.
+DEFAULT_WAIT_TIMEOUT_S = 30.0
+WAIT_POLL_INTERVAL_S = 3.0
+
+logger = logging.getLogger(__name__)
 
 PTP_DIAGNOSTICS_SUBCOMMAND = 1
 PTP_DIAGNOSTICS_PAYLOAD_LEN = 24
@@ -118,17 +126,63 @@ def _session(ip, timeout, ptc_port):
     try:
         client.wait_until_open(timeout)
     except RuntimeError as exc:
-        raise _wrap_cpp_error(exc) from exc
+        err = _wrap_cpp_error(exc)
+        err.transport = True
+        raise err from exc
     return client
 
 
-def _run(fn, ip, timeout=2.0, ptc_port=PTC_PORT):
-    """Run a callable with a connected PTC session."""
-    try:
-        client = _session(ip, timeout, ptc_port)
-        return fn(client)
-    except RuntimeError as exc:
-        raise _wrap_cpp_error(exc) from exc
+def set_default_wait_timeout(seconds):
+    """Set how long PTC calls retry transport failures by default (0 = no retry)."""
+    global DEFAULT_WAIT_TIMEOUT_S
+    DEFAULT_WAIT_TIMEOUT_S = max(0.0, float(seconds))
+
+
+def _run(fn, ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None, retry=True):
+    """
+    Run a callable with a connected PTC session.
+
+    Transport failures (connect timeout, a PTC request that gets no valid
+    reply) are retried until wait_timeout seconds elapse, so a lidar that is
+    rebooting or has a brief blip does not fail the call. Errors raised by fn
+    itself as HesaiPtcError (readback mismatch, bad argument, old firmware) are
+    real answers and are never retried. Pass retry=False for commands that must
+    not run twice (reboot, firmware upgrade).
+    """
+    if wait_timeout is None:
+        wait_timeout = DEFAULT_WAIT_TIMEOUT_S
+    if not retry:
+        wait_timeout = 0.0
+    start = time.monotonic()
+    deadline = start + max(0.0, wait_timeout)
+    warned = False
+    while True:
+        try:
+            client = _session(ip, timeout, ptc_port)
+            return fn(client)
+        except HesaiPtcError as exc:
+            # Session-open failures arrive here as HesaiPtcError; errors raised
+            # by fn for logic reasons are re-raised by the check below.
+            if not getattr(exc, 'transport', False):
+                raise
+            last = exc
+        except RuntimeError as exc:
+            last = _wrap_cpp_error(exc)
+            last.transport = True
+        if time.monotonic() >= deadline:
+            if wait_timeout <= 0:
+                raise last
+            raise HesaiPtcError(
+                'Lidar {}:{} not ready after {:.0f}s ({}). Is it powered and '
+                'still booting?'.format(ip, ptc_port, time.monotonic() - start, last)
+            ) from last
+        if not warned:
+            logger.warning(
+                'Lidar %s not ready yet (%s); retrying for up to %.0fs...',
+                ip, last, wait_timeout,
+            )
+            warned = True
+        time.sleep(WAIT_POLL_INTERVAL_S)
 
 
 def ptc_reachable(ip, timeout=2.0, ptc_port=PTC_PORT):
@@ -136,12 +190,17 @@ def ptc_reachable(ip, timeout=2.0, ptc_port=PTC_PORT):
     return _cpp.ptc_reachable(ip, ptc_port, timeout)
 
 
-def get_return_mode(ip, timeout=2.0, ptc_port=PTC_PORT):
+def wait_for_lidar(ip, wait_timeout=DEFAULT_WAIT_TIMEOUT_S, timeout=2.0, ptc_port=PTC_PORT):
+    """Block until the lidar answers PTC, then return its return mode."""
+    return get_return_mode(ip, timeout, ptc_port, wait_timeout)
+
+
+def get_return_mode(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Read lidar return mode via SDK GetReturnMode."""
-    return _run(lambda c: c.get_return_mode(), ip, timeout, ptc_port)
+    return _run(lambda c: c.get_return_mode(), ip, timeout, ptc_port, wait_timeout)
 
 
-def set_return_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT):
+def set_return_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Set return mode and verify readback."""
     def _set(client):
         client.set_return_mode(int(mode))
@@ -153,7 +212,7 @@ def set_return_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT):
                 )
             )
 
-    _run(_set, ip, timeout, ptc_port)
+    _run(_set, ip, timeout, ptc_port, wait_timeout)
 
 
 def get_ptp_lock_offset_us(ip, timeout=2.0, ptc_port=PTC_PORT):
@@ -471,7 +530,7 @@ def upgrade_lidar_firmware(
             client.set_upgrade_percent_callback(progress_callback)
         client.upgrade_lidar_patch(file_path, int(cmd_id), int(is_extern))
 
-    _run(_upgrade, ip, timeout, ptc_port)
+    _run(_upgrade, ip, timeout, ptc_port, retry=False)
 
 
 def reboot_lidar(ip, timeout=2.0, ptc_port=PTC_PORT):
@@ -481,6 +540,6 @@ def reboot_lidar(ip, timeout=2.0, ptc_port=PTC_PORT):
     def _reboot(client):
         client.query_command(PTC_REBOOT_LIDAR_CMD, b'')
 
-    _run(_reboot, ip, timeout, ptc_port)
+    _run(_reboot, ip, timeout, ptc_port, retry=False)
 
 
