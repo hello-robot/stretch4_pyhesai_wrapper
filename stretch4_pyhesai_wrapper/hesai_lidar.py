@@ -106,7 +106,7 @@ class HesaiLidar():
             # is the first packet's time rather than the azimuth-0 boundary.
             # Drop these partial sweeps.
             full, n = self._full_points, frame.points_num
-            self._full_points = max(full, n)
+            self._full_points = n
             if full == 0:
                 logging.debug("%s lidar: dropped the partial sweep in progress at startup "
                               "(%d points)", self.side, n)
