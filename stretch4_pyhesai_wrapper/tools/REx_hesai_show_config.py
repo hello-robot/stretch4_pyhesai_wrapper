@@ -8,6 +8,7 @@ A tool to print configuration, firmware, and status of Stretch's Hesai lidars.
 from __future__ import annotations
 import argparse
 import sys
+import time
 
 from stretch4_pyhesai_wrapper.ptc_client import (
     LEFT_LIDAR_IP,
@@ -30,19 +31,33 @@ from stretch4_pyhesai_wrapper.ptc_client import (
     PTP_STATUS_NAMES,
     PTP_STATUS_FREE_RUN,
     HesaiPtcError,
+    DEFAULT_WAIT_TIMEOUT_S,
+    WAIT_POLL_INTERVAL_S,
+    set_default_wait_timeout,
 )
 
-def show_lidar_info(side: str, ip: str, timeout: float = 2.0) -> None:
+def show_lidar_info(side: str, ip: str, timeout: float = 2.0, wait: float = 0.0) -> None:
     print("=" * 70)
     print(f"             HESAI {side.upper()} LIDAR CONFIGURATION & STATUS")
     print(f"             Address: {ip}:{PTC_PORT}")
     print("=" * 70)
 
-    if not ptc_reachable(ip, timeout=timeout):
-        print("  Status:               OFFLINE / UNREACHABLE")
+    deadline = time.monotonic() + wait
+    reachable = ptc_reachable(ip, timeout=timeout)
+    if not reachable and wait > 0:
+        print(f"  Not reachable yet; waiting up to {wait:.0f}s (lidar may be booting)...", flush=True)
+        while not reachable and time.monotonic() < deadline:
+            time.sleep(WAIT_POLL_INTERVAL_S)
+            reachable = ptc_reachable(ip, timeout=timeout)
+    if not reachable:
+        waited = f" after waiting {wait:.0f}s" if wait > 0 else ""
+        print(f"  Status:               OFFLINE / UNREACHABLE{waited}")
         print("=" * 70)
         print()
         return
+
+    # Reachable now: later queries fail fast instead of each waiting again.
+    set_default_wait_timeout(0.0)
 
     # 1. Fetch Inventory Info
     try:
@@ -145,18 +160,25 @@ def main(argv: list[str] | None = None) -> int:
         default=2.0,
         help="PTC query timeout in seconds (default 2.0)",
     )
-    
+    parser.add_argument(
+        "--wait",
+        type=float,
+        default=DEFAULT_WAIT_TIMEOUT_S,
+        help="Seconds to wait for a lidar that is unreachable, e.g. still booting "
+             "(default %(default)s, 0 = don't wait)",
+    )
+
     args = parser.parse_args(argv if argv is not None else sys.argv[1:])
 
     # Determine which lidars to show
     if args.left:
-        show_lidar_info("left", LEFT_LIDAR_IP, timeout=args.timeout)
+        show_lidar_info("left", LEFT_LIDAR_IP, timeout=args.timeout, wait=args.wait)
     elif args.right:
-        show_lidar_info("right", RIGHT_LIDAR_IP, timeout=args.timeout)
+        show_lidar_info("right", RIGHT_LIDAR_IP, timeout=args.timeout, wait=args.wait)
     else:
         # Show both by default
-        show_lidar_info("left", LEFT_LIDAR_IP, timeout=args.timeout)
-        show_lidar_info("right", RIGHT_LIDAR_IP, timeout=args.timeout)
+        show_lidar_info("left", LEFT_LIDAR_IP, timeout=args.timeout, wait=args.wait)
+        show_lidar_info("right", RIGHT_LIDAR_IP, timeout=args.timeout, wait=args.wait)
 
     return 0
 

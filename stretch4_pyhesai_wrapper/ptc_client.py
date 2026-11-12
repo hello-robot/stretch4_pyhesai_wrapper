@@ -6,9 +6,11 @@ Provides module-level get/set helpers used by stretch_lidar_check and FAB tests.
 """
 
 import argparse
+import logging
 import os
 import struct
 import sys
+import time
 import yaml
 
 from stretch4_pyhesai_wrapper import pyhesai_wrapper_cpp as _cpp
@@ -21,6 +23,14 @@ with open(CONFIG_PATH, "r") as f:
 LEFT_LIDAR_IP = CONFIG['left_lidar']['ip']
 RIGHT_LIDAR_IP = CONFIG['right_lidar']['ip']
 PTC_PORT = CONFIG['left_lidar'].get('ptc_port', 9347)
+
+# How long PTC calls keep retrying transport failures before raising. 0 disables retrying.
+DEFAULT_WAIT_TIMEOUT_S = 30.0
+# Retry backoff: grows x3 per attempt up to WAIT_POLL_INTERVAL_S
+RETRY_FIRST_DELAY_S = 0.3
+WAIT_POLL_INTERVAL_S = 3.0
+
+logger = logging.getLogger(__name__)
 
 PTP_DIAGNOSTICS_SUBCOMMAND = 1
 PTP_DIAGNOSTICS_PAYLOAD_LEN = 24
@@ -118,17 +128,76 @@ def _session(ip, timeout, ptc_port):
     try:
         client.wait_until_open(timeout)
     except RuntimeError as exc:
-        raise _wrap_cpp_error(exc) from exc
+        # Drop the client before raising
+        del client
+        err = _wrap_cpp_error(exc)
+        err.transport = True
+        raise err from exc
     return client
 
 
-def _run(fn, ip, timeout=2.0, ptc_port=PTC_PORT):
-    """Run a callable with a connected PTC session."""
-    try:
-        client = _session(ip, timeout, ptc_port)
-        return fn(client)
-    except RuntimeError as exc:
-        raise _wrap_cpp_error(exc) from exc
+def set_default_wait_timeout(seconds):
+    """Set how long PTC calls retry transport failures by default (0 = no retry)."""
+    global DEFAULT_WAIT_TIMEOUT_S
+    DEFAULT_WAIT_TIMEOUT_S = max(0.0, float(seconds))
+
+
+def _run(fn, ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None, retry=True):
+    """
+    Run a callable with a connected PTC session.
+
+    Transport failures (connect timeout, a PTC request that gets no valid
+    reply) are retried until wait_timeout seconds elapse, so a lidar that is
+    rebooting or has a brief blip does not fail the call. Errors raised by fn
+    itself as HesaiPtcError (readback mismatch, bad argument, old firmware) are
+    real answers and are never retried. Pass retry=False for commands that must
+    not run twice (reboot, firmware upgrade).
+    """
+    if wait_timeout is None:
+        wait_timeout = DEFAULT_WAIT_TIMEOUT_S
+    if not retry:
+        wait_timeout = 0.0
+    start = time.monotonic()
+    deadline = start + max(0.0, wait_timeout)
+    delay = RETRY_FIRST_DELAY_S
+    attempt = 0
+    while True:
+        attempt += 1
+        client = None
+        try:
+            client = _session(ip, timeout, ptc_port)
+            return fn(client)
+        except HesaiPtcError as exc:
+            # Session-open failures arrive here as HesaiPtcError; errors raised
+            # by fn for logic reasons are re-raised by the check below.
+            if not getattr(exc, 'transport', False):
+                raise
+            # Keep a fresh copy, not exc: its traceback would keep the failed
+            # PtcClient (and a lidar PTC slot) alive.
+            last = _wrap_cpp_error(exc)
+            last.transport = True
+        except RuntimeError as exc:
+            last = _wrap_cpp_error(exc)
+            last.transport = True
+        finally:
+            # Release the session so its PTC slot (the lidar allows 3) frees immediately.
+            client = None
+        if time.monotonic() >= deadline:
+            if wait_timeout <= 0:
+                raise last
+            raise HesaiPtcError(
+                'Lidar {}:{} not ready after {:.0f}s ({}). Is it powered and '
+                'still booting?'.format(ip, ptc_port, time.monotonic() - start, last)
+            ) from last
+        if attempt == 2:
+            # Warn only once the quick first retry has also failed, so a single
+            # lost packet stays quiet.
+            logger.warning(
+                'Lidar %s not ready yet (%s); retrying for up to %.0fs...',
+                ip, last, wait_timeout,
+            )
+        time.sleep(min(delay, max(0.0, deadline - time.monotonic())))
+        delay = min(delay * 3, WAIT_POLL_INTERVAL_S)
 
 
 def ptc_reachable(ip, timeout=2.0, ptc_port=PTC_PORT):
@@ -136,12 +205,17 @@ def ptc_reachable(ip, timeout=2.0, ptc_port=PTC_PORT):
     return _cpp.ptc_reachable(ip, ptc_port, timeout)
 
 
-def get_return_mode(ip, timeout=2.0, ptc_port=PTC_PORT):
+def wait_for_lidar(ip, wait_timeout=None, timeout=2.0, ptc_port=PTC_PORT):
+    """Block until the lidar answers PTC, then return its return mode."""
+    return get_return_mode(ip, timeout, ptc_port, wait_timeout)
+
+
+def get_return_mode(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Read lidar return mode via SDK GetReturnMode."""
-    return _run(lambda c: c.get_return_mode(), ip, timeout, ptc_port)
+    return _run(lambda c: c.get_return_mode(), ip, timeout, ptc_port, wait_timeout)
 
 
-def set_return_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT):
+def set_return_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Set return mode and verify readback."""
     def _set(client):
         client.set_return_mode(int(mode))
@@ -153,15 +227,15 @@ def set_return_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT):
                 )
             )
 
-    _run(_set, ip, timeout, ptc_port)
+    _run(_set, ip, timeout, ptc_port, wait_timeout)
 
 
-def get_ptp_lock_offset_us(ip, timeout=2.0, ptc_port=PTC_PORT):
+def get_ptp_lock_offset_us(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Read PTP lock offset threshold in microseconds."""
-    return _run(lambda c: c.get_ptp_lock_offset_us(), ip, timeout, ptc_port)
+    return _run(lambda c: c.get_ptp_lock_offset_us(), ip, timeout, ptc_port, wait_timeout)
 
 
-def set_ptp_lock_offset_us(ip, offset_us=PTP_LOCK_OFFSET_US, timeout=2.0, ptc_port=PTC_PORT):
+def set_ptp_lock_offset_us(ip, offset_us=PTP_LOCK_OFFSET_US, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """
     Set PTP lock offset threshold in microseconds (clamped to 1-1000 µs).
 
@@ -183,19 +257,19 @@ def set_ptp_lock_offset_us(ip, offset_us=PTP_LOCK_OFFSET_US, timeout=2.0, ptc_po
             )
         return us
 
-    return _run(_set, ip, timeout, ptc_port)
+    return _run(_set, ip, timeout, ptc_port, wait_timeout)
 
 
-def get_lidar_ptp_status(ip, timeout=2.0, ptc_port=PTC_PORT):
+def get_lidar_ptp_status(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Read PTP status (0=free_run, 1=tracking, 2=locked, 3=frozen)."""
-    status = _run(lambda c: c.get_lidar_ptp_status(), ip, timeout, ptc_port)
+    status = _run(lambda c: c.get_lidar_ptp_status(), ip, timeout, ptc_port, wait_timeout)
     return {
         'ptp_status': status,
         'ptp_status_name': PTP_STATUS_NAMES.get(status, 'unknown'),
     }
 
 
-def get_ptp_diagnostics(ip, timeout=2.0, ptc_port=PTC_PORT):
+def get_ptp_diagnostics(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Query PTP master offset and lidar PTP status."""
     def _get(client):
         payload = client.get_ptp_diagnostics_raw(PTP_DIAGNOSTICS_SUBCOMMAND)
@@ -214,12 +288,12 @@ def get_ptp_diagnostics(ip, timeout=2.0, ptc_port=PTC_PORT):
             'ptp_status_name': PTP_STATUS_NAMES.get(status, 'unknown'),
         }
 
-    return _run(_get, ip, timeout, ptc_port)
+    return _run(_get, ip, timeout, ptc_port, wait_timeout)
 
 
-def sample_ptp_offset_us(ip, timeout=2.0, ptc_port=PTC_PORT):
+def sample_ptp_offset_us(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Sample one |PTP offset| reading in microseconds."""
-    diag = get_ptp_diagnostics(ip, timeout=timeout, ptc_port=ptc_port)
+    diag = get_ptp_diagnostics(ip, timeout=timeout, ptc_port=ptc_port, wait_timeout=wait_timeout)
     return diag['offset_us'], diag
 
 
@@ -227,12 +301,12 @@ SPIN_RATE_RPM_600 = 600
 SPIN_RATE_RPM_1200 = 1200
 
 
-def get_spin_rate(ip, timeout=2.0, ptc_port=PTC_PORT):
+def get_spin_rate(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Read lidar spin rate in RPM."""
-    return _run(lambda c: c.get_spin_rate(), ip, timeout, ptc_port)
+    return _run(lambda c: c.get_spin_rate(), ip, timeout, ptc_port, wait_timeout)
 
 
-def set_spin_speed(ip, rpm, timeout=2.0, ptc_port=PTC_PORT):
+def set_spin_speed(ip, rpm, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Set spin speed (600 or 1200 RPM) and verify readback."""
     rpm = int(rpm)
     if rpm not in (SPIN_RATE_RPM_600, SPIN_RATE_RPM_1200):
@@ -252,15 +326,15 @@ def set_spin_speed(ip, rpm, timeout=2.0, ptc_port=PTC_PORT):
                 )
             )
 
-    _run(_set, ip, timeout, ptc_port)
+    _run(_set, ip, timeout, ptc_port, wait_timeout)
 
 
-def get_point_cloud_config(ip, timeout=2.0, ptc_port=PTC_PORT):
+def get_point_cloud_config(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Read JT128 point cloud config (ultra_precise, filter) via GET 0x122."""
-    return _run(lambda c: c.get_point_cloud_config(), ip, timeout, ptc_port)
+    return _run(lambda c: c.get_point_cloud_config(), ip, timeout, ptc_port, wait_timeout)
 
 
-def set_filter_type(ip, filter_type, timeout=2.0, ptc_port=PTC_PORT):
+def set_filter_type(ip, filter_type, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """
     Set point-cloud filter type; leave ultra_precise unchanged.
 
@@ -269,7 +343,7 @@ def set_filter_type(ip, filter_type, timeout=2.0, ptc_port=PTC_PORT):
     """
     filt = int(filter_type)
     if filt == FILTER_STRONGEST:
-        require_new_firmware(ip, timeout=timeout, ptc_port=ptc_port)
+        require_new_firmware(ip, timeout=timeout, ptc_port=ptc_port, wait_timeout=wait_timeout)
 
     def _set(client):
         client.set_point_cloud_config_selective(POINT_CLOUD_KEEP_CURRENT, filt)
@@ -280,12 +354,12 @@ def set_filter_type(ip, filter_type, timeout=2.0, ptc_port=PTC_PORT):
                 '(ultra_precise={})'.format(filt, readback, ultra)
             )
 
-    _run(_set, ip, timeout, ptc_port)
+    _run(_set, ip, timeout, ptc_port, wait_timeout)
 
 
-def get_inventory_info(ip, timeout=2.0, ptc_port=PTC_PORT):
+def get_inventory_info(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Read and parse lidar inventory information (serial number, model, etc.)."""
-    raw = _run(lambda c: c.get_inventory_info_raw(), ip, timeout, ptc_port)
+    raw = _run(lambda c: c.get_inventory_info_raw(), ip, timeout, ptc_port, wait_timeout)
     if len(raw) < 136:
         raise HesaiPtcError("GetInventoryInfo returned too few bytes ({} < 136)".format(len(raw)))
 
@@ -357,11 +431,11 @@ def _parse_bit_version(ver):
         return None
 
 
-def is_new_firmware_supported(ip, timeout=2.0, ptc_port=PTC_PORT):
+def is_new_firmware_supported(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """
     Return True if lidar FW supports Strongest filter + POINT_CLOUD_MODE.
     """
-    inv = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port)
+    inv = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port, wait_timeout=wait_timeout)
     app = _parse_app_version(inv.get('hardware_version', ''))
     sensor = _parse_bit_version(inv.get('software_version', ''))
     controller = _parse_bit_version(inv.get('fpga_version', ''))
@@ -374,11 +448,11 @@ def is_new_firmware_supported(ip, timeout=2.0, ptc_port=PTC_PORT):
     )
 
 
-def require_new_firmware(ip, timeout=2.0, ptc_port=PTC_PORT):
+def require_new_firmware(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Raise HesaiPtcError if lidar FW does not support the new PTC features."""
-    if is_new_firmware_supported(ip, timeout=timeout, ptc_port=ptc_port):
+    if is_new_firmware_supported(ip, timeout=timeout, ptc_port=ptc_port, wait_timeout=wait_timeout):
         return
-    inv = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port)
+    inv = get_inventory_info(ip, timeout=timeout, ptc_port=ptc_port, wait_timeout=wait_timeout)
     raise HesaiPtcError(
         'Firmware too old for this feature: app={!r} sensor={!r} controller={!r} '
         '(need {} or later on all three)'.format(
@@ -407,25 +481,25 @@ def _parse_extended_u8_payload(raw, subcmd):
     )
 
 
-def get_point_cloud_mode(ip, timeout=2.0, ptc_port=PTC_PORT):
+def get_point_cloud_mode(ip, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """Read POINT_CLOUD_MODE via GET [0xFF, 0x00000165]. Requires new firmware."""
-    require_new_firmware(ip, timeout=timeout, ptc_port=ptc_port)
+    require_new_firmware(ip, timeout=timeout, ptc_port=ptc_port, wait_timeout=wait_timeout)
     payload = struct.pack('>I', PTC_GET_POINT_CLOUD_MODE_SUBCMD)
 
     def _get(client):
         raw = client.query_command(PTC_CMD_HAS_SUBCOMMAND, payload)
         return _parse_extended_u8_payload(raw, PTC_GET_POINT_CLOUD_MODE_SUBCMD)
 
-    return _run(_get, ip, timeout, ptc_port)
+    return _run(_get, ip, timeout, ptc_port, wait_timeout)
 
 
-def set_point_cloud_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT):
+def set_point_cloud_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT, wait_timeout=None):
     """
     Set POINT_CLOUD_MODE via SET [0xFF, 0x00000164] and verify readback.
 
     Modes: 0 general, 1 mapping, 2 mapping+ground. Requires new firmware.
     """
-    require_new_firmware(ip, timeout=timeout, ptc_port=ptc_port)
+    require_new_firmware(ip, timeout=timeout, ptc_port=ptc_port, wait_timeout=wait_timeout)
     mode = int(mode)
     if mode not in POINT_CLOUD_MODE_NAMES:
         raise HesaiPtcError(
@@ -445,7 +519,7 @@ def set_point_cloud_mode(ip, mode, timeout=2.0, ptc_port=PTC_PORT):
                 )
             )
 
-    _run(_set, ip, timeout, ptc_port)
+    _run(_set, ip, timeout, ptc_port, wait_timeout)
 
 
 def upgrade_lidar_firmware(
@@ -471,7 +545,7 @@ def upgrade_lidar_firmware(
             client.set_upgrade_percent_callback(progress_callback)
         client.upgrade_lidar_patch(file_path, int(cmd_id), int(is_extern))
 
-    _run(_upgrade, ip, timeout, ptc_port)
+    _run(_upgrade, ip, timeout, ptc_port, retry=False)
 
 
 def reboot_lidar(ip, timeout=2.0, ptc_port=PTC_PORT):
@@ -481,6 +555,6 @@ def reboot_lidar(ip, timeout=2.0, ptc_port=PTC_PORT):
     def _reboot(client):
         client.query_command(PTC_REBOOT_LIDAR_CMD, b'')
 
-    _run(_reboot, ip, timeout, ptc_port)
+    _run(_reboot, ip, timeout, ptc_port, retry=False)
 
 
